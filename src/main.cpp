@@ -18,6 +18,12 @@ int main(int argc, char* argv[]) {
     SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "0");
     SDL_SetHint("SDL_ANDROID_BLOCK_ON_PAUSE", "1");
 
+    // The plist says landscape, but the plist only constrains iOS. SDL keeps
+    // its own list and will still bring the window up portrait on a handheld
+    // unless it is told, and a portrait surface is what puts the machine's
+    // 4:3 picture off to one side of the screen.
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+
     retro3do::App app;
 
     // retro3do [bios] [disc] - both optional, and either overrides whatever the

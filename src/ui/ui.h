@@ -128,6 +128,7 @@ private:
 
     void release_ui_texture();
     void update_scale();
+    void apply_safe_area();
     void update_touch_scroll();
     void draw_splash();
     void draw_setup_wizard(Console& console, UiIntent& intent);

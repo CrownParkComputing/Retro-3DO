@@ -198,8 +198,23 @@ bool App::init() {
     // tiling compositor otherwise squeezes the window until the A-Z strip is
     // unreadable or clipped, even though the app requested a useful initial
     // size. Equal minimum and maximum bounds make 1280x720 authoritative.
-    SDL_SetWindowMinimumSize(window_, kDefaultWindowWidth, kDefaultWindowHeight);
-    SDL_SetWindowMaximumSize(window_, kDefaultWindowWidth, kDefaultWindowHeight);
+    //
+    // RETRO3DO_WINDOW_SIZE=WxH overrides that, so the launcher and the game
+    // can be examined at a handheld's real pixel dimensions on a desktop.
+    int forced_w = 0;
+    int forced_h = 0;
+    if (const char* forced = SDL_getenv("RETRO3DO_WINDOW_SIZE")) {
+        if (SDL_sscanf(forced, "%dx%d", &forced_w, &forced_h) != 2) {
+            forced_w = 0;
+            forced_h = 0;
+        }
+    }
+    if (forced_w > 0 && forced_h > 0) {
+        SDL_SetWindowSize(window_, forced_w, forced_h);
+    } else {
+        SDL_SetWindowMinimumSize(window_, kDefaultWindowWidth, kDefaultWindowHeight);
+        SDL_SetWindowMaximumSize(window_, kDefaultWindowWidth, kDefaultWindowHeight);
+    }
 #endif
 
     // Synchronise presentation to the panel. Emulation is paced independently

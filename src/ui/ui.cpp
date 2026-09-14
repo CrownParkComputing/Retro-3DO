@@ -557,6 +557,43 @@ bool Ui::wants_keyboard() const {
     return initialised_ && ImGui::GetIO().WantCaptureKeyboard;
 }
 
+// A notched or islanded handheld reserves screen edges the system draws over.
+// In landscape the cutout sits on a long edge, directly over the navigation
+// rail, so without this the first characters of the page are hidden behind it.
+//
+// The launcher already positions everything from the viewport's work area, so
+// narrowing the work area to the safe area moves the whole UI at once and
+// leaves the game picture underneath drawn full-bleed, which is what it should
+// be. On a device with no insets SDL reports the whole window and this is a
+// no-op.
+void Ui::apply_safe_area() {
+    if (window_ == nullptr) return;
+
+    SDL_Rect safe{};
+    if (!SDL_GetWindowSafeArea(window_, &safe)) return;
+    if (safe.w <= 0 || safe.h <= 0) return;
+
+    int window_w = 0;
+    int window_h = 0;
+    SDL_GetWindowSize(window_, &window_w, &window_h);
+    if (window_w <= 0 || window_h <= 0) return;
+
+    // SDL reports the safe area in window coordinates and ImGui's viewport is
+    // in the same space, so the insets carry across directly.
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    if (viewport == nullptr) return;
+
+    const float left = static_cast<float>(safe.x);
+    const float top = static_cast<float>(safe.y);
+    const float right = static_cast<float>(window_w - (safe.x + safe.w));
+    const float bottom = static_cast<float>(window_h - (safe.y + safe.h));
+
+    viewport->WorkPos = ImVec2(viewport->Pos.x + left, viewport->Pos.y + top);
+    viewport->WorkSize = ImVec2(viewport->Size.x - left - right,
+                                viewport->Size.y - top - bottom);
+}
+
+
 UiIntent Ui::build(Console& console, bool emulating, double display_fps,
                    double emulated_fps, double frame_ms, u64 underruns,
                    bool touch_visible, bool touch_editing) {
@@ -567,6 +604,7 @@ UiIntent Ui::build(Console& console, bool emulating, double display_fps,
     ImGui_ImplSDLRenderer3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
+    apply_safe_area();
     update_touch_scroll();
 
 
@@ -883,7 +921,12 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
 
     const ImVec2 nav_top = ImGui::GetCursorScreenPos();
     const float total_width = ImGui::GetContentRegionAvail().x;
-    const int action_count = 7 + (retro_media_admin_ ? 1 : 0) +
+    // Apple's guidance is that an iOS app is never quit by the app itself, and
+    // a visible quit control is a known review rejection. The system gesture is
+    // the way out of a handheld; on a desktop the button still is. It has to
+    // come out of the count as well as the layout or the grid keeps its slot.
+    const int action_count = 6 + (RETRO3DO_PLATFORM_IOS ? 0 : 1) +
+                             (retro_media_admin_ ? 1 : 0) +
                              (session_available_ ? 1 : 0);
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const int nav_columns = std::max(1, std::min(action_count,
@@ -937,10 +980,12 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
         }
         ImGui::PopStyleColor();
     }
+#if !RETRO3DO_PLATFORM_IOS
     next_nav();
     if (ImGui::Button("EXIT", ImVec2(action_width, 40.0f * scale_))) {
         intent.quit = true;
     }
+#endif
     ImGui::SetCursorScreenPos(ImVec2(nav_top.x, nav_top.y + nav_height));
     const ImGuiWindowFlags page_flags = ImGuiWindowFlags_NoScrollbar;
     if (page_ != drawn_page_) {
@@ -1799,7 +1844,9 @@ void Ui::draw_quick_menu(Console& console, bool emulating, bool touch_visible,
         show_launcher_ = true;
         quick_menu_ = false;
     }
+#if !RETRO3DO_PLATFORM_IOS
     if (ImGui::Button("EXIT RETRO-3DO", ImVec2(-1.0f, 0.0f))) intent.quit = true;
+#endif
     ImGui::PopTextWrapPos();
     ImGui::End();
 }

@@ -67,18 +67,19 @@
 	<array>
 		<string>arm64</string>
 	</array>
+	<!-- Landscape only. The launcher is a landscape surface and the machine's
+	     picture is 4:3, so a portrait window fits the frame into a tall
+	     surface and leaves the picture offset against the controls. Allowing
+	     portrait here is what made the app come up rotated on a handheld. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
-		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
 	<key>UIStatusBarHidden</key>
 	<true/>
