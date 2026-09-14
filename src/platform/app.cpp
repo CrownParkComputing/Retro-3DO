@@ -1422,6 +1422,25 @@ void App::tick() {
 
     SDL_SetRenderDrawColor(renderer_, 8, 8, 10, 255);
     SDL_RenderClear(renderer_);
+
+    // The picture and the pad are both placed in framebuffer pixels, so the
+    // renderer has to be at 1:1 while they are drawn.
+    //
+    // The UI sets the window target's render scale to the display's pixel
+    // density, which is what lets ImGui lay out in points on a Retina panel.
+    // SDL keeps scale per render target, and the UI's reset to 1.0 runs after
+    // it has already switched to its own texture, so the window target keeps
+    // the density scale for good. Anything then placed at pixel coordinates
+    // comes out multiplied by 3 on a phone and 2 on a tablet: the picture ran
+    // off the side of a wide screen and overscaled a 4:3 one, the bezel and
+    // CRT overlay were magnified with it, and the pad was pushed off-screen.
+    // The UI itself is unaffected because it composites its texture with no
+    // destination rectangle, which SDL resolves against the scaled target.
+    float previous_scale_x = 1.0f;
+    float previous_scale_y = 1.0f;
+    SDL_GetRenderScale(renderer_, &previous_scale_x, &previous_scale_y);
+    SDL_SetRenderScale(renderer_, 1.0f, 1.0f);
+
     present();
 
     // Over the picture, under the menus: the controls belong to the game, not
@@ -1434,6 +1453,8 @@ void App::tick() {
             touch_->draw(renderer_, window_w, window_h);
         }
     }
+
+    SDL_SetRenderScale(renderer_, previous_scale_x, previous_scale_y);
 
     ui_->render(renderer_);
     if (backgrounded_.load(std::memory_order_acquire)) return;
