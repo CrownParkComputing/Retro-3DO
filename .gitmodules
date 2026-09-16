@@ -5,3 +5,7 @@
 	path = third_party/SDL
 	url = https://github.com/libsdl-org/SDL.git
 	branch = release-3.4.x
+[submodule "core"]
+	path = core
+	url = https://github.com/CrownParkComputing/retro3do-core.git
+	branch = cpc

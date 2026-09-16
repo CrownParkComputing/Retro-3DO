@@ -5,7 +5,7 @@ below, which must ship with any binary distribution.
 
 ## MAME — BSD-3-Clause
 
-Parts of the CLIO expansion-bus implementation in `src/core/clio.cpp` are
+Parts of the CLIO expansion-bus implementation in `core/core/clio.cpp` are
 derived from MAME's 3DO devices (`src/mame/misc/3do_clio.cpp`), specifically
 the poll-register bit layout and the fact that SELECTION names a device by the
 value written rather than by the address written to.
@@ -38,7 +38,7 @@ value written rather than by the address written to.
 
 ## MAME's CR-560B device — BSD-3-Clause
 
-The CD-ROM drive model in `src/core/xbus.cpp` follows MAME's `cr560b` device
+The CD-ROM drive model in `core/core/xbus.cpp` follows MAME's `cr560b` device
 (`src/devices/machine/cr560b.cpp`), copyright Angelo Salese, BSD-3-Clause. The
 drive is a Panasonic CR-560B on a pre-IDE MKE interface - the drive the FZ-1 and
 FZ-10 actually contain - and that device is where its command set is written
@@ -56,7 +56,8 @@ above applies - see the MAME entry.
 
 ## libchdr — BSD-3-Clause
 
-`third_party/libchdr`, vendored whole, is used to read CHD images. CHD is how
+`core/third_party/libchdr`, vendored whole in the core repository, is used to
+read CHD images. CHD is how
 nearly every 3DO dump in the wild is stored, so this is the ordinary path into
 the emulator rather than an optional extra. It is self-contained: it brings its
 own LZMA, miniz and zstd, so there is nothing to find on the host and nothing
@@ -79,7 +80,7 @@ extra to cross compile for Android or iOS.
 >
 > THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 > AND ANY EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED. See
-> `third_party/libchdr/LICENSE.txt` for the full text.
+> `core/third_party/libchdr/LICENSE.txt` for the full text.
 
 Its bundled dependencies carry their own permissive terms: the LZMA SDK is
 public domain, miniz is MIT, and zstd is BSD/GPLv2 dual licensed (BSD taken).

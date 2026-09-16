@@ -33,7 +33,6 @@ set(RETRO3DO_CODE_SIGN_IDENTITY "" CACHE STRING
     "Signing identity, e.g. Apple Distribution; Manual signing only")
 set(RETRO3DO_MARKETING_VERSION "1.0" CACHE STRING "CFBundleShortVersionString")
 set(RETRO3DO_BUILD_NUMBER "1" CACHE STRING "CFBundleVersion")
-set(RETRO3DO_IOS_MIN "15.0" CACHE STRING "iOS deployment target")
 set(RETRO3DO_MACOS_MIN "11.0" CACHE STRING "macOS deployment target")
 
 # Instruction and register traces. These are how the hardware faults in this
@@ -61,76 +60,24 @@ option(RETRO3DO_USE_SYSTEM_SDL "Link the system SDL3 instead of the vendored one
 # ---------------------------------------------------------------------------
 # The emulator core.
 #
-# Deliberately free of any platform or windowing dependency: it is linked
-# unchanged into the app, into the tests, and (later) into the Android and iOS
-# targets. If something in here ever needs a platform header, that is the signal
-# that it belongs in src/platform instead.
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# libchdr — reading CHD, which is how nearly every 3DO dump in the wild is
-# stored. BSD-3-Clause, and self-contained: it brings its own LZMA, miniz and
-# zstd, so there is nothing to find on the host and nothing extra to cross
-# compile for Android or iOS. See docs/THIRD_PARTY.md.
-# ---------------------------------------------------------------------------
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(INSTALL_STATIC_LIBS OFF CACHE BOOL "" FORCE)
-set(CHDR_WANT_TESTS OFF CACHE BOOL "" FORCE)
-set(WITH_SYSTEM_ZLIB OFF CACHE BOOL "" FORCE)
-set(WITH_SYSTEM_ZSTD OFF CACHE BOOL "" FORCE)
-# Let the library reassemble whole frames, sync and ECC and subcode included.
+# It lives in its own repository now -- CrownParkComputing/retro3do-core, here
+# as the core submodule. Two applications consume it: this one, and the iOS app
+# being built separately. A core that only builds inside one of them gets
+# copied into the other, and then the two drift; that is precisely what
+# happened to dosbox-x-sdl3, which ended up holding a second copy of its whole
+# frontend, already 20KB apart from the real one.
 #
-# Turning these off does not merely change where a sector's payload starts - it
-# stops the CD codecs reassembling a raw sector at all, and every disc dumped
-# as MODE1_RAW fails to decompress its very first hunk. That is most 3DO dumps
-# in circulation: with them off, one disc in a twelve-title library worked and
-# the other eleven looked like emulator bugs.
+# It brings its own libchdr, built the way the core needs it (the raw-sector
+# and subcode flags are not optional -- see the note in core/CMakeLists.txt),
+# so there is nothing to configure here. It stays deliberately free of any
+# platform or windowing dependency: if something in it ever needs a platform
+# header, that is the signal it belongs in src/platform instead.
 #
-# Where the payload sits inside a frame is then this project's problem, and is
-# handled per track type in disc.cpp.
-set(CHDR_WANT_RAW_DATA_SECTOR ON CACHE BOOL "" FORCE)
-set(CHDR_WANT_SUBCODE ON CACHE BOOL "" FORCE)
-add_subdirectory(third_party/libchdr EXCLUDE_FROM_ALL)
-
-add_library(retro3do_core STATIC
-    src/core/arm60.cpp
-    src/core/audio_ring.cpp
-    src/core/bus.cpp
-    src/core/chd.cpp
-    src/core/clio.cpp
-    src/core/dsp.cpp
-    src/core/pbus.cpp
-    src/core/console.cpp
-    src/core/disc.cpp
-    src/core/demo_rom.cpp
-    src/core/frame_mailbox.cpp
-    src/core/madam.cpp
-    src/core/pad.cpp
-    src/core/pad_layout.cpp
-    src/core/path.cpp
-    src/core/settings.cpp
-    src/core/sport.cpp
-    src/core/vdlp.cpp
-    src/core/xbus.cpp
-)
-if(RETRO3DO_TRACING)
-    target_compile_definitions(retro3do_core PUBLIC RETRO3DO_TRACING=1)
-endif()
-
-target_include_directories(retro3do_core PUBLIC src)
-target_link_libraries(retro3do_core PRIVATE chdr-static)
-
-# The core is a software emulator: it is the one thing that must be optimised in
-# every configuration, or a debug build is too slow to run a game at all. The
-# app and UI stay fully debuggable.
-if(NOT MSVC)
-    target_compile_options(retro3do_core PRIVATE
-        $<$<CONFIG:Debug>:-O2>
-        -fno-math-errno
-    )
-    target_compile_options(retro3do_core PRIVATE
-        -Wall -Wextra -Wno-unused-parameter
-    )
-endif()
+# retro3do_core's include directory is the core repository root, so the
+# spelling stays `#include "core/bus.h"` exactly as it read when this was
+# src/core.
+# ---------------------------------------------------------------------------
+add_subdirectory(core)
 
 # ---------------------------------------------------------------------------
 # SDL3
@@ -282,12 +229,16 @@ if(APPLE)
         XCODE_ATTRIBUTE_SKIP_INSTALL "NO")
 
     if(IOS)
-        set_target_properties(retro3do PROPERTIES
-            MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist.in
-            XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "${RETRO3DO_IOS_MIN}"
-            # 1,2 = iPhone and iPad from one build.
-            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
-        )
+        # There is no iOS app in this repository any more. It was rejected
+        # under 4.3 with the rest of the family for being one app shipped
+        # several times, and is being rebuilt as its own application with its
+        # own interface. Its ios/ directory went with it, so this configuration
+        # cannot succeed -- say why, rather than failing later on a missing
+        # Info.plist.in that reads like a corrupted checkout.
+        message(FATAL_ERROR
+            "This repository builds the Android and desktop applications. The "
+            "iOS app is a separate project; build it from its own repository, "
+            "with the core submodule shared between them.")
     else()
         set_target_properties(retro3do PROPERTIES
             MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist.in

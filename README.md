@@ -108,18 +108,22 @@ and submit.
 ## Layout
 
 ```
-src/core/       the 3DO itself. No platform headers, ever.
+core/           submodule: the 3DO itself, and libchdr. No platform headers, ever.
 src/platform/   SDL: window, events, pacing, presentation
 src/ui/         Dear ImGui: launcher and overlay
 tests/          host-side tests
 android/        Gradle shell around the shared CMake tree
-ios/            Xcode/CMake shell around the shared CMake tree
 macos/          the same, for the desktop bundle: plist, entitlements, script
 assets/apple/   asset catalogue, compiled into the icon by actool
 ```
 
-The rule that keeps this working: if something in `src/core/` ever needs a
-platform header, it belongs in `src/platform/` instead.
+`core/` is [retro3do-core](https://github.com/CrownParkComputing/retro3do-core),
+which used to be `src/core/` here. It moved out because a second application --
+the iOS one -- needs the same emulator, and a core that only builds inside one
+app gets copied into the other and then the two drift apart.
+
+The rule that keeps this working: if something in `core/` ever needs a platform
+header, it belongs in `src/platform/` instead.
 
 ## Roadmap
 
