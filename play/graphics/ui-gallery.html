@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Retro-3DO — front-end gallery</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 24px 80px;
+    background: #0b0d10; color: #e6e9ef;
+    font: 15px/1.6 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+  header { max-width: 1180px; margin: 0 auto 36px; }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sub { color: #9aa4b2; margin: 0; }
+  .sub code, .src code { color: #cfd6e2; }
+  .grid { max-width: 1180px; margin: 0 auto; display: grid; gap: 34px; }
+  figure {
+    margin: 0; background: #14181e; border: 1px solid #232a33;
+    border-radius: 14px; overflow: hidden;
+  }
+  figure img { display: block; width: 100%; height: auto; background: #000; }
+  figcaption { padding: 16px 20px 20px; }
+  figcaption h2 { font-size: 18px; margin: 0 0 6px; }
+  figcaption h2 span { color: #6f7b8a; font-weight: 400; font-size: 14px; }
+  figcaption p { margin: 0 0 8px; color: #b9c2cf; }
+  .src { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #7f8b9a; }
+  table { max-width: 1180px; margin: 44px auto 0; border-collapse: collapse; width: 100%; }
+  caption { text-align: left; color: #9aa4b2; padding-bottom: 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid #232a33; }
+  th { color: #9aa4b2; font-weight: 500; font-size: 13px; }
+  td code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cfd6e2; }
+  .hint { max-width: 1180px; margin: 40px auto 0; color: #7f8b9a; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Retro-3DO front end</h1>
+  <p class="sub">Dear ImGui over SDL. One drawing path for phones, tablets and desktops &mdash;
+  no per-platform UI. Pages live in <code>src/ui/ui.cpp</code>, state in <code>src/ui/ui.h</code>.</p>
+</header>
+
+<div class="grid">
+
+  <figure>
+    <img src="phone/01-library.png" alt="Retro-3DO library page">
+    <figcaption>
+      <h2>Library <span>&mdash; <code>Page::Library</code></span></h2>
+      <p>The launcher's home page. Game cards carry artwork pulled from RetroMedia, a search box,
+      and a group filter. Selecting a disc mounts it and boots the machine; the same page hosts the
+      Demo entry that runs the built-in no-BIOS demonstration ROM.</p>
+      <p class="src">draw_library &mdash; src/ui/ui.cpp:1012</p>
+    </figcaption>
+  </figure>
+
+  <figure>
+    <img src="phone/02-gameplay.png" alt="Retro-3DO in-game overlay and touch controls">
+    <figcaption>
+      <h2>In game <span>&mdash; overlay and on-screen pad</span></h2>
+      <p>Emulation runs on its own thread; the front end draws the newest completed frame from a
+      triple-buffered mailbox and never presents from the emulation path. The overlay reports display
+      and emulated frame rates, frame time and underruns, and the movable on-screen pad &mdash; saved
+      per device &mdash; sits over the picture until it is hidden or edited.</p>
+      <p class="src">draw_overlay &mdash; src/ui/ui.cpp:1706 &middot; draw_quick_menu src/ui/ui.cpp:1761</p>
+    </figcaption>
+  </figure>
+
+  <figure>
+    <img src="phone/03-setup.png" alt="Retro-3DO first-run setup wizard">
+    <figcaption>
+      <h2>Setup <span>&mdash; <code>WizardStep</code></span></h2>
+      <p>First run walks Welcome &rarr; Bios &rarr; Games &rarr; RetroMedia &rarr; Finish. The BIOS and
+      games folders are picked through the app's own file browser, which is what makes the phone build
+      usable without typing a path &mdash; on Android the picker is SAF, so the app requests no storage
+      permission at all.</p>
+      <p class="src">draw_setup_wizard &mdash; src/ui/ui.cpp:713 &middot; draw_file_browser src/ui/ui.cpp:1857</p>
+    </figcaption>
+  </figure>
+
+  <figure>
+    <img src="phone/04-about.png" alt="Retro-3DO about page">
+    <figcaption>
+      <h2>About <span>&mdash; <code>Page::About</code></span></h2>
+      <p>Version, licence and the provenance record. Bundled components keep their own terms, and the
+      distribution and historical reference-source notices are part of the release record rather than
+      the build.</p>
+      <p class="src">draw_about &mdash; src/ui/ui.cpp:1629 &middot; core/docs/PROVENANCE.md</p>
+    </figcaption>
+  </figure>
+
+</div>
+
+<table>
+  <caption>Every page the front end draws</caption>
+  <thead>
+    <tr><th>Page</th><th>What it is for</th><th>Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Splash</td><td>Startup mark, held until the first frame is ready</td><td><code>draw_splash</code> ui.cpp:646</td></tr>
+    <tr><td>Library</td><td>Game cards, artwork, search, grouping, Demo entry</td><td><code>draw_library</code> ui.cpp:1012</td></tr>
+    <tr><td>Settings</td><td>Renderer, widescreen, bezel, CRT effect, GPU driver, pad, ARM boost</td><td><code>draw_settings</code> ui.cpp:1219</td></tr>
+    <tr><td>Artwork</td><td>RetroMedia artwork type and library re-scan</td><td><code>draw_artwork</code> ui.cpp:1284</td></tr>
+    <tr><td>Downloads</td><td>RetroMedia sign-in, credits, search and catalogue download</td><td><code>draw_downloads</code> ui.cpp:1383</td></tr>
+    <tr><td>System</td><td>BIOS, region PAL/NTSC, CPU scale, folders, memory card</td><td><code>draw_system</code> ui.cpp:1480</td></tr>
+    <tr><td>About</td><td>Version, licence, provenance</td><td><code>draw_about</code> ui.cpp:1629</td></tr>
+    <tr><td>Overlay</td><td>Frame-rate readout, menu button, pad toggle</td><td><code>draw_overlay</code> ui.cpp:1706</td></tr>
+    <tr><td>Quick menu</td><td>Resume, reset, pause, eject, pad edit, quit</td><td><code>draw_quick_menu</code> ui.cpp:1761</td></tr>
+    <tr><td>File browser</td><td>Folder and file picker for BIOS, discs and folders</td><td><code>draw_file_browser</code> ui.cpp:1857</td></tr>
+  </tbody>
+</table>
+
+<p class="hint">Screenshots: <code>play/graphics/phone/*.png</code> (1920&times;1080, captured from the
+front end). This page sits beside them, so the images resolve without a server.</p>
+
+</body>
+</html>

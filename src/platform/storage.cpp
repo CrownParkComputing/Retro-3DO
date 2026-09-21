@@ -2,7 +2,7 @@
 
 #include <SDL3/SDL.h>
 
-#include "core/path.h"
+#include "app/path.h"
 #include "platform/platform.h"
 
 namespace retro3do {

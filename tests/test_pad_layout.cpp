@@ -6,14 +6,14 @@
 // hung off the screen and could never be pressed.
 #include <cmath>
 
-#include "core/pad_layout.h"
+#include "app/pad_layout.h"
 #include "test_harness.h"
 
 using namespace retro3do;
 
 namespace {
 
-const TouchControl* find(const std::vector<TouchControl>& layout, PadButton button) {
+const TouchControl* find(const std::vector<TouchControl>& layout, retro3do_pad_button button) {
     for (const TouchControl& control : layout) {
         if (control.button == button) return &control;
     }
@@ -66,10 +66,10 @@ TEST(the_dpad_is_a_square_cross_not_a_stretched_diamond) {
     const int h = 1080;
     const std::vector<TouchControl> layout = default_touch_layout(w, h);
 
-    const TouchControl* up = find(layout, PadButton::Up);
-    const TouchControl* down = find(layout, PadButton::Down);
-    const TouchControl* left = find(layout, PadButton::Left);
-    const TouchControl* right = find(layout, PadButton::Right);
+    const TouchControl* up = find(layout, RETRO3DO_PAD_UP);
+    const TouchControl* down = find(layout, RETRO3DO_PAD_DOWN);
+    const TouchControl* left = find(layout, RETRO3DO_PAD_LEFT);
+    const TouchControl* right = find(layout, RETRO3DO_PAD_RIGHT);
     CHECK(up != nullptr && down != nullptr && left != nullptr && right != nullptr);
 
     const float vertical = pixel_distance(*up, *down, w, h);
@@ -84,39 +84,39 @@ TEST(the_dpad_stays_square_on_a_squarer_screen_too) {
     const int h = 1536;
     const std::vector<TouchControl> layout = default_touch_layout(w, h);
 
-    const float vertical = pixel_distance(*find(layout, PadButton::Up),
-                                          *find(layout, PadButton::Down), w, h);
-    const float horizontal = pixel_distance(*find(layout, PadButton::Left),
-                                            *find(layout, PadButton::Right), w, h);
+    const float vertical = pixel_distance(*find(layout, RETRO3DO_PAD_UP),
+                                          *find(layout, RETRO3DO_PAD_DOWN), w, h);
+    const float horizontal = pixel_distance(*find(layout, RETRO3DO_PAD_LEFT),
+                                            *find(layout, RETRO3DO_PAD_RIGHT), w, h);
     CHECK(std::fabs(vertical - horizontal) < vertical * 0.02f);
 }
 
 TEST(movement_is_on_the_left_and_actions_on_the_right) {
     const std::vector<TouchControl> layout = default_touch_layout(1280, 720);
-    CHECK(find(layout, PadButton::Left)->x < 0.4f);
-    CHECK(find(layout, PadButton::Up)->x < 0.4f);
-    CHECK(find(layout, PadButton::A)->x > 0.6f);
-    CHECK(find(layout, PadButton::B)->x > 0.6f);
-    CHECK(find(layout, PadButton::C)->x > 0.6f);
+    CHECK(find(layout, RETRO3DO_PAD_LEFT)->x < 0.4f);
+    CHECK(find(layout, RETRO3DO_PAD_UP)->x < 0.4f);
+    CHECK(find(layout, RETRO3DO_PAD_A)->x > 0.6f);
+    CHECK(find(layout, RETRO3DO_PAD_B)->x > 0.6f);
+    CHECK(find(layout, RETRO3DO_PAD_C)->x > 0.6f);
 }
 
 TEST(the_shoulder_buttons_are_up_out_of_the_way) {
     // They sit where a thumb does not rest, so they are not pressed by accident
     // while holding the device.
     const std::vector<TouchControl> layout = default_touch_layout(1280, 720);
-    CHECK(find(layout, PadButton::LeftShift)->y < 0.3f);
-    CHECK(find(layout, PadButton::RightShift)->y < 0.3f);
+    CHECK(find(layout, RETRO3DO_PAD_LEFT_SHIFT)->y < 0.3f);
+    CHECK(find(layout, RETRO3DO_PAD_RIGHT_SHIFT)->y < 0.3f);
 }
 
 TEST(every_button_the_machine_has_is_present_exactly_once) {
     const std::vector<TouchControl> layout = default_touch_layout(1280, 720);
-    const PadButton expected[] = {
-        PadButton::Up, PadButton::Down, PadButton::Left, PadButton::Right,
-        PadButton::A, PadButton::B, PadButton::C,
-        PadButton::Play, PadButton::Stop,
-        PadButton::LeftShift, PadButton::RightShift,
+    const retro3do_pad_button expected[] = {
+        RETRO3DO_PAD_UP, RETRO3DO_PAD_DOWN, RETRO3DO_PAD_LEFT, RETRO3DO_PAD_RIGHT,
+        RETRO3DO_PAD_A, RETRO3DO_PAD_B, RETRO3DO_PAD_C,
+        RETRO3DO_PAD_PLAY, RETRO3DO_PAD_STOP,
+        RETRO3DO_PAD_LEFT_SHIFT, RETRO3DO_PAD_RIGHT_SHIFT,
     };
-    for (PadButton button : expected) {
+    for (retro3do_pad_button button : expected) {
         int count = 0;
         for (const TouchControl& control : layout) {
             if (control.button == button) ++count;

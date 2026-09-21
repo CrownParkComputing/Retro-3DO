@@ -5,49 +5,49 @@
 #include <cmath>
 #include <cstdio>
 
-#include "core/pad_layout.h"
-#include "core/settings.h"
+#include "app/pad_layout.h"
+#include "app/settings.h"
 #include "platform/platform.h"
 
 namespace retro3do {
 namespace {
 
-const char* key_for(PadButton button) {
+const char* key_for(retro3do_pad_button button) {
     switch (button) {
-        case PadButton::Up:         return "up";
-        case PadButton::Down:       return "down";
-        case PadButton::Left:       return "left";
-        case PadButton::Right:      return "right";
-        case PadButton::A:          return "a";
-        case PadButton::B:          return "b";
-        case PadButton::C:          return "c";
-        case PadButton::Play:       return "play";
-        case PadButton::Stop:       return "stop";
-        case PadButton::LeftShift:  return "lshift";
-        case PadButton::RightShift: return "rshift";
+        case RETRO3DO_PAD_UP:         return "up";
+        case RETRO3DO_PAD_DOWN:       return "down";
+        case RETRO3DO_PAD_LEFT:       return "left";
+        case RETRO3DO_PAD_RIGHT:      return "right";
+        case RETRO3DO_PAD_A:          return "a";
+        case RETRO3DO_PAD_B:          return "b";
+        case RETRO3DO_PAD_C:          return "c";
+        case RETRO3DO_PAD_PLAY:       return "play";
+        case RETRO3DO_PAD_STOP:       return "stop";
+        case RETRO3DO_PAD_LEFT_SHIFT:  return "lshift";
+        case RETRO3DO_PAD_RIGHT_SHIFT: return "rshift";
         default:                    return "unknown";
     }
 }
 
 // The d-pad arrows are drawn rather than lettered, so they read at a glance.
-void draw_arrow(SDL_Renderer* renderer, PadButton button, float cx, float cy,
+void draw_arrow(SDL_Renderer* renderer, retro3do_pad_button button, float cx, float cy,
                 float r) {
     const float a = r * 0.45f;
     SDL_FPoint p[4];
     switch (button) {
-        case PadButton::Up:
+        case RETRO3DO_PAD_UP:
             p[0] = {cx, cy - a}; p[1] = {cx - a, cy + a * 0.6f};
             p[2] = {cx + a, cy + a * 0.6f}; p[3] = p[0];
             break;
-        case PadButton::Down:
+        case RETRO3DO_PAD_DOWN:
             p[0] = {cx, cy + a}; p[1] = {cx - a, cy - a * 0.6f};
             p[2] = {cx + a, cy - a * 0.6f}; p[3] = p[0];
             break;
-        case PadButton::Left:
+        case RETRO3DO_PAD_LEFT:
             p[0] = {cx - a, cy}; p[1] = {cx + a * 0.6f, cy - a};
             p[2] = {cx + a * 0.6f, cy + a}; p[3] = p[0];
             break;
-        case PadButton::Right:
+        case RETRO3DO_PAD_RIGHT:
             p[0] = {cx + a, cy}; p[1] = {cx - a * 0.6f, cy - a};
             p[2] = {cx - a * 0.6f, cy + a}; p[3] = p[0];
             break;
@@ -164,7 +164,7 @@ int TouchPad::control_at(float px, float py, int w, int h) const {
     return -1;
 }
 
-bool TouchPad::handle_event(const SDL_Event& event, int w, int h, PadState& pads) {
+bool TouchPad::handle_event(const SDL_Event& event, int w, int h, retro3do_t* emu) {
     if (!visible() || w <= 0 || h <= 0) {
         return false;
     }
@@ -219,7 +219,7 @@ bool TouchPad::handle_event(const SDL_Event& event, int w, int h, PadState& pads
         }
         active_.push_back(ActiveTouch{finger, index});
         if (!editing_) {
-            pads.press(0, controls_[static_cast<size_t>(index)].button, true);
+            retro3do_pad_press(emu, 0, controls_[static_cast<size_t>(index)].button, 1);
         }
         return true;
     }
@@ -245,7 +245,7 @@ bool TouchPad::handle_event(const SDL_Event& event, int w, int h, PadState& pads
             if (active_[i].finger_id != finger) continue;
             const int index = active_[i].control_index;
             if (index >= 0 && !editing_) {
-                pads.press(0, controls_[static_cast<size_t>(index)].button, false);
+                retro3do_pad_press(emu, 0, controls_[static_cast<size_t>(index)].button, 0);
             }
             active_.erase(active_.begin() + static_cast<long>(i));
             return index >= 0;

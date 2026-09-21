@@ -36,7 +36,7 @@ Everything executable inside this build, with its origin and licence:
 3. Bundled libraries, unmodified in substance and carrying their own licences:
    SDL3 (zlib), Dear ImGui (MIT), libchdr (BSD-3-Clause), AdrenoTools
    (BSD-2-Clause), miniz (MIT), LZMA SDK (public domain), zstd (BSD).
-   Collected in docs/THIRD_PARTY.md.
+   Collected in core/docs/THIRD_PARTY.md.
 
 USER-SUPPLIED CONTENT
 

@@ -4,16 +4,15 @@
 
 #include <algorithm>
 #include <cctype>
+#include <unordered_map>
 
-#include "core/console.h"
-#include "core/frame_mailbox.h"
-#include "core/pad.h"
-#include "core/settings.h"
+#include "retro3do.h"
+#include "app/settings.h"
 #include "platform/android_storage.h"
 #include "platform/platform.h"
 #include "platform/storage.h"
 #include "ui/touch_pad.h"
-#include "platform/emulator_thread.h"
+
 #include "ui/ui.h"
 
 namespace retro3do {
@@ -78,15 +77,16 @@ App::~App() {
         lifecycle_watch_registered_ = false;
     }
     // Stop emulating before anything it touches goes away.
-    if (settings_ && touch_ && console_) {
+    if (settings_ && touch_ && emu_ != nullptr) {
         save_settings();
     }
     // Last chance to write out a save the user made just before quitting.
-    if (emulator_) {
-        emulator_->stop();
+    if (emu_ != nullptr) {
+        retro3do_stop(emu_);
         save_nvram();
     }
-    emulator_.reset();
+    retro3do_destroy(emu_);
+    emu_ = nullptr;
     ui_.reset();
     stop_audio();
     for (SDL_Gamepad*& pad : gamepads_) {
@@ -226,10 +226,12 @@ bool App::init() {
         SDL_Log("Could not enable presentation vsync: %s", SDL_GetError());
     }
 
-    console_ = std::make_unique<Console>();
-    mailbox_ = std::make_unique<FrameMailbox>();
+    emu_ = retro3do_create();
+    if (emu_ == nullptr) {
+        last_error_ = "Could not create the emulated machine";
+        return false;
+    }
     touch_ = std::make_unique<TouchPad>();
-    emulator_ = std::make_unique<EmulatorThread>(*console_, *mailbox_);
 
     ui_ = std::make_unique<Ui>();
     if (!ui_->init(window_, renderer_)) {
@@ -266,12 +268,12 @@ bool App::init() {
     load_nvram();
 
     if (launch_demo_) {
-        console_->eject_disc();
-        if (!console_->load_builtin_demo()) {
-            last_error_ = console_->last_error();
+        retro3do_eject_disc(emu_);
+        if (!retro3do_load_demo(emu_)) {
+            last_error_ = retro3do_last_error(emu_);
             return false;
         }
-        console_->reset();
+        retro3do_reset(emu_);
         start_on_launch_ = true;
     }
 
@@ -281,12 +283,12 @@ bool App::init() {
         AndroidStorage::begin_retro_media_status();
     }
 
-    emulator_->set_paused(!start_on_launch_);
+    retro3do_set_paused(emu_, !start_on_launch_);
     emulating_ = start_on_launch_;
     if (start_on_launch_) {
         ui_->hide_launcher();
     }
-    emulator_->start();
+    retro3do_start(emu_);
 
     running_ = true;
     return true;
@@ -416,7 +418,7 @@ void App::handle_events() {
             int window_w = 0;
             int window_h = 0;
             SDL_GetRenderOutputSize(renderer_, &window_w, &window_h);
-            if (touch_->handle_event(event, window_w, window_h, console_->pads())) {
+            if (touch_->handle_event(event, window_w, window_h, emu_)) {
                 continue;
             }
         }
@@ -471,8 +473,19 @@ void App::handle_events() {
 }
 
 void App::present() {
-    const int width = mailbox_->width();
-    const int height = mailbox_->height();
+    // Only re-upload when a new frame has actually arrived. If the display is
+    // running faster than the emulator - which it is, at 60 Hz against a paused
+    // or slow machine - the same texture is simply drawn again. The core says
+    // which case this is; asking it twice for the same frame is what the
+    // acquire/current pair exists to avoid.
+    retro3do_frame frame;
+    const bool is_new = retro3do_acquire_frame(emu_, &frame) != 0;
+    if (!is_new && retro3do_current_frame(emu_, &frame) == 0) {
+        return;  // the machine has not drawn anything yet
+    }
+
+    const int width = frame.width;
+    const int height = frame.height;
     if (width <= 0 || height <= 0) {
         return;
     }
@@ -482,12 +495,8 @@ void App::present() {
         return;
     }
 
-    // Only re-upload when a new frame has actually arrived. If the display is
-    // running faster than the emulator - which it is, at 60 Hz against a paused
-    // or slow machine - the same texture is simply drawn again.
-    const u32* pixels = mailbox_->acquire();
-    if (pixels != nullptr) {
-        SDL_UpdateTexture(frame_texture_, nullptr, pixels,
+    if (is_new) {
+        SDL_UpdateTexture(frame_texture_, nullptr, frame.pixels,
                           width * static_cast<int>(sizeof(u32)));
     }
 
@@ -575,20 +584,20 @@ bool App::open_bios(const std::string& path, const std::string& name) {
     // actual string.
     SDL_Log("open BIOS: %s", path.c_str());
     if (AndroidStorage::available()) {
-        return console_->load_bios_fd(AndroidStorage::open_document(path),
-                                      name.empty() ? path : name);
+        return retro3do_load_bios_fd(emu_, AndroidStorage::open_document(path),
+                                     (name.empty() ? path : name).c_str()) != 0;
     }
-    return console_->load_bios(path);
+    return retro3do_load_bios(emu_, path.c_str()) != 0;
 }
 
 bool App::open_disc(const std::string& path, const std::string& name) {
     if (path.empty()) return false;
     SDL_Log("open disc: %s", path.c_str());
     if (AndroidStorage::available()) {
-        return console_->load_disc_fd(AndroidStorage::open_document(path),
-                                      name.empty() ? path : name);
+        return retro3do_load_disc_fd(emu_, AndroidStorage::open_document(path),
+                                     (name.empty() ? path : name).c_str()) != 0;
     }
-    return console_->load_disc(path);
+    return retro3do_load_disc(emu_, path.c_str()) != 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -607,14 +616,15 @@ void App::set_launch_files(std::string bios, std::string disc) {
 // padded - a half-restored NVRAM would look to a title like a corrupt one, and
 // it would offer to reformat it, which would lose everything.
 void App::load_nvram() {
-    if (!console_) return;
+    if (emu_ == nullptr) return;
     const std::string path = Storage::join(Storage::writable_directory(), kNvramFile);
     size_t size = 0;
     void* data = SDL_LoadFile(path.c_str(), &size);
     if (data == nullptr) {
         return;
     }
-    console_->bus().restore_nvram(static_cast<const u8*>(data), size);
+    retro3do_restore_nvram(emu_, static_cast<const u8*>(data),
+                           static_cast<u32>(size));
     SDL_free(data);
 }
 
@@ -622,12 +632,16 @@ void App::load_nvram() {
 // every time: the machine only writes the NVRAM when the user saves, so the
 // file is only touched then too.
 void App::save_nvram() {
-    if (!emulator_) return;
-    if (!emulator_->take_nvram(nvram_scratch_)) {
+    if (emu_ == nullptr) return;
+    nvram_scratch_.resize(retro3do_nvram_size(emu_));
+    u32 written = 0;
+    if (retro3do_take_nvram(emu_, nvram_scratch_.data(),
+                            static_cast<u32>(nvram_scratch_.size()),
+                            &written) == 0) {
         return;
     }
     const std::string path = Storage::join(Storage::writable_directory(), kNvramFile);
-    SDL_SaveFile(path.c_str(), nvram_scratch_.data(), nvram_scratch_.size());
+    SDL_SaveFile(path.c_str(), nvram_scratch_.data(), written);
 }
 
 void App::load_settings() {
@@ -645,11 +659,11 @@ void App::load_settings() {
         settings_->get(settings_key::kBiosFolderName), bios_folder,
         settings_->get(settings_key::kGamesFolderName), games_folder);
 
-    console_->set_region(settings_->get_int(settings_key::kRegion, 0) == 1
-                             ? Region::Pal
-                             : Region::Ntsc);
+    retro3do_set_region(emu_, settings_->get_int(settings_key::kRegion, 0) == 1
+                                  ? RETRO3DO_REGION_PAL
+                                  : RETRO3DO_REGION_NTSC);
     const int cpu_scale = settings_->get_int(settings_key::kCpuScale, 100);
-    console_->set_cpu_scale_percent(cpu_scale == 125 || cpu_scale == 150
+    retro3do_set_cpu_scale_percent(emu_, cpu_scale == 125 || cpu_scale == 150
                                         ? static_cast<u32>(cpu_scale)
                                         : 100u);
     touch_->load_layout(*settings_);
@@ -696,7 +710,7 @@ void App::load_settings() {
         lowercased(settings_->get(settings_key::kBiosName));
     const bool arcade_bios = remembered_bios_name.find("arcade") != std::string::npos ||
                              remembered_bios_name.find("saot") != std::string::npos;
-    if (AndroidStorage::available() && (!console_->bios_loaded() || arcade_bios) &&
+    if (AndroidStorage::available() && (!(retro3do_bios_loaded(emu_) != 0) || arcade_bios) &&
         !bios_folder.empty()) {
         use_bios_folder(settings_->get(settings_key::kBiosFolderName),
                         bios_folder);
@@ -898,9 +912,9 @@ void App::scan_games_folder(const std::string& name, const std::string& target) 
 
 void App::save_settings() {
     settings_->set_int(settings_key::kRegion,
-                       console_->region() == Region::Pal ? 1 : 0);
+                       retro3do_get_region(emu_) == RETRO3DO_REGION_PAL ? 1 : 0);
     settings_->set_int(settings_key::kCpuScale,
-                       static_cast<int>(console_->cpu_scale_percent()));
+                       static_cast<int>(retro3do_get_cpu_scale_percent(emu_)));
     touch_->save_layout(*settings_);
     settings_->set_bool(settings_key::kPerformanceHud,
                         ui_->performance_visible());
@@ -922,7 +936,7 @@ bool App::start_audio() {
     SDL_AudioSpec spec;
     spec.format = SDL_AUDIO_S16;
     spec.channels = 2;
-    spec.freq = static_cast<int>(kAudioSampleRate);
+    spec.freq = RETRO3DO_SAMPLE_RATE;
 
     // A stream rather than a callback: SDL does the resampling if the device
     // will not take 44.1 kHz, which on a phone it frequently will not.
@@ -955,17 +969,20 @@ void App::feed_audio() {
 
     // Keep roughly two frames queued. Less and any hitch is audible; more and
     // input starts to feel detached from the sound.
-    constexpr int kTargetQueuedBytes =
-        static_cast<int>(kAudioSampleRate / 30) * static_cast<int>(sizeof(StereoSample));
+    // One stereo pair: two channels of signed 16-bit, which is the layout the
+    // core hands over and the format the stream was opened with, so nothing in
+    // between has to convert anything.
+    constexpr int kFrameBytes = 2 * static_cast<int>(sizeof(int16_t));
+    constexpr int kTargetQueuedBytes = (RETRO3DO_SAMPLE_RATE / 30) * kFrameBytes;
 
     int queued = SDL_GetAudioStreamQueued(audio_stream_);
     if (queued >= kTargetQueuedBytes) {
         return;
     }
 
-    StereoSample chunk[1024];
-    int wanted = (kTargetQueuedBytes - queued) / static_cast<int>(sizeof(StereoSample));
-    const int available = static_cast<int>(console_->audio().available());
+    int16_t chunk[1024 * 2];
+    int wanted = (kTargetQueuedBytes - queued) / kFrameBytes;
+    const int available = static_cast<int>(retro3do_audio_available(emu_));
     if (!audio_started_ && available < wanted) {
         return;
     }
@@ -974,9 +991,9 @@ void App::feed_audio() {
     }
     while (wanted > 0) {
         const u32 count = static_cast<u32>(wanted > 1024 ? 1024 : wanted);
-        console_->audio().pull(chunk, count);
+        retro3do_audio_pull(emu_, chunk, count);
         SDL_PutAudioStreamData(audio_stream_, chunk,
-                               static_cast<int>(count * sizeof(StereoSample)));
+                               static_cast<int>(count) * kFrameBytes);
         wanted -= static_cast<int>(count);
     }
     if (!audio_started_) {
@@ -988,26 +1005,46 @@ void App::feed_audio() {
 // ---------------------------------------------------------------------------
 // Input
 // ---------------------------------------------------------------------------
+namespace {
+
+// The application used to hold a reference to the machine's pad state and write
+// to it directly. The core owns the pads now and they are reached by handle, so
+// this is the two-line adapter that keeps the mapping below reading as a table
+// of controller buttons against 3DO buttons instead of forty repetitions of the
+// same handle argument.
+struct PadWriter {
+    retro3do_t* emu;
+
+    void press(u32 pad, retro3do_pad_button button, bool down) const {
+        retro3do_pad_press(emu, pad, button, down ? 1 : 0);
+    }
+    void set_connected(u32 pad, bool connected) const {
+        retro3do_pad_connect(emu, pad, connected ? 1 : 0);
+    }
+};
+
+}  // namespace
+
 void App::apply_keyboard(int scancode, bool down) {
-    PadState& pads = console_->pads();
+    const PadWriter pads{emu_};
     switch (scancode) {
-        case SDL_SCANCODE_UP:     pads.press(0, PadButton::Up, down); break;
-        case SDL_SCANCODE_DOWN:   pads.press(0, PadButton::Down, down); break;
-        case SDL_SCANCODE_LEFT:   pads.press(0, PadButton::Left, down); break;
-        case SDL_SCANCODE_RIGHT:  pads.press(0, PadButton::Right, down); break;
-        case SDL_SCANCODE_Z:      pads.press(0, PadButton::A, down); break;
-        case SDL_SCANCODE_X:      pads.press(0, PadButton::B, down); break;
-        case SDL_SCANCODE_C:      pads.press(0, PadButton::C, down); break;
-        case SDL_SCANCODE_RETURN: pads.press(0, PadButton::Play, down); break;
-        case SDL_SCANCODE_SPACE:  pads.press(0, PadButton::Stop, down); break;
-        case SDL_SCANCODE_Q:      pads.press(0, PadButton::LeftShift, down); break;
-        case SDL_SCANCODE_W:      pads.press(0, PadButton::RightShift, down); break;
+        case SDL_SCANCODE_UP:     pads.press(0, RETRO3DO_PAD_UP, down); break;
+        case SDL_SCANCODE_DOWN:   pads.press(0, RETRO3DO_PAD_DOWN, down); break;
+        case SDL_SCANCODE_LEFT:   pads.press(0, RETRO3DO_PAD_LEFT, down); break;
+        case SDL_SCANCODE_RIGHT:  pads.press(0, RETRO3DO_PAD_RIGHT, down); break;
+        case SDL_SCANCODE_Z:      pads.press(0, RETRO3DO_PAD_A, down); break;
+        case SDL_SCANCODE_X:      pads.press(0, RETRO3DO_PAD_B, down); break;
+        case SDL_SCANCODE_C:      pads.press(0, RETRO3DO_PAD_C, down); break;
+        case SDL_SCANCODE_RETURN: pads.press(0, RETRO3DO_PAD_PLAY, down); break;
+        case SDL_SCANCODE_SPACE:  pads.press(0, RETRO3DO_PAD_STOP, down); break;
+        case SDL_SCANCODE_Q:      pads.press(0, RETRO3DO_PAD_LEFT_SHIFT, down); break;
+        case SDL_SCANCODE_W:      pads.press(0, RETRO3DO_PAD_RIGHT_SHIFT, down); break;
         default: break;
     }
 }
 
 int App::pad_slot_for(u32 joystick_id) const {
-    for (int slot = 0; slot < static_cast<int>(kMaxPads); ++slot) {
+    for (int slot = 0; slot < static_cast<int>(RETRO3DO_MAX_PADS); ++slot) {
         if (gamepads_[slot] != nullptr &&
             SDL_GetGamepadID(gamepads_[slot]) == joystick_id) {
             return slot;
@@ -1027,7 +1064,7 @@ void App::open_gamepad(u32 which) {
     if (pad_slot_for(which) >= 0) {
         return;
     }
-    for (int slot = 0; slot < static_cast<int>(kMaxPads); ++slot) {
+    for (int slot = 0; slot < static_cast<int>(RETRO3DO_MAX_PADS); ++slot) {
         if (gamepads_[slot] != nullptr) {
             continue;
         }
@@ -1038,7 +1075,7 @@ void App::open_gamepad(u32 which) {
         gamepads_[slot] = pad;
         axis_direction_[slot][0] = 0;
         axis_direction_[slot][1] = 0;
-        console_->pads().set_connected(static_cast<u32>(slot), true);
+        retro3do_pad_connect(emu_, static_cast<u32>(slot), 1);
         touch_->set_physical_gamepad_present(true);
         SDL_Log("Controller %s is 3DO pad %d", SDL_GetGamepadName(pad), slot + 1);
         return;
@@ -1055,9 +1092,9 @@ void App::close_gamepad(u32 which) {
 
     // Release anything that was held when it went, or the game keeps running
     // in whatever direction the player was pushing.
-    PadState& pads = console_->pads();
-    for (u32 b = 0; b < static_cast<u32>(PadButton::Count); ++b) {
-        pads.press(static_cast<u32>(slot), static_cast<PadButton>(b), false);
+    const PadWriter pads{emu_};
+    for (u32 b = 0; b < static_cast<u32>(RETRO3DO_PAD_COUNT); ++b) {
+        pads.press(static_cast<u32>(slot), static_cast<retro3do_pad_button>(b), false);
     }
     // Slot zero is always attached: it is what the keyboard and the on-screen
     // controls drive, and a machine with no pad in it is not a state worth
@@ -1074,25 +1111,25 @@ void App::close_gamepad(u32 which) {
 }
 
 void App::apply_gamepad_button(int slot, int button, bool down) {
-    PadState& pads = console_->pads();
+    const PadWriter pads{emu_};
     const u32 pad = static_cast<u32>(slot);
     switch (button) {
-        case SDL_GAMEPAD_BUTTON_DPAD_UP:    pads.press(pad, PadButton::Up, down); break;
-        case SDL_GAMEPAD_BUTTON_DPAD_DOWN:  pads.press(pad, PadButton::Down, down); break;
-        case SDL_GAMEPAD_BUTTON_DPAD_LEFT:  pads.press(pad, PadButton::Left, down); break;
-        case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: pads.press(pad, PadButton::Right, down); break;
+        case SDL_GAMEPAD_BUTTON_DPAD_UP:    pads.press(pad, RETRO3DO_PAD_UP, down); break;
+        case SDL_GAMEPAD_BUTTON_DPAD_DOWN:  pads.press(pad, RETRO3DO_PAD_DOWN, down); break;
+        case SDL_GAMEPAD_BUTTON_DPAD_LEFT:  pads.press(pad, RETRO3DO_PAD_LEFT, down); break;
+        case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: pads.press(pad, RETRO3DO_PAD_RIGHT, down); break;
         // The 3DO's three face buttons sit in a row, A B C from the left. On a
         // modern controller the bottom and right buttons are the two that fall
         // under the thumb, so they take A and B, and C goes to the left one -
         // which leaves the top button free rather than putting C somewhere it
         // cannot be reached in a hurry.
-        case SDL_GAMEPAD_BUTTON_SOUTH:      pads.press(pad, PadButton::A, down); break;
-        case SDL_GAMEPAD_BUTTON_EAST:       pads.press(pad, PadButton::B, down); break;
-        case SDL_GAMEPAD_BUTTON_WEST:       pads.press(pad, PadButton::C, down); break;
-        case SDL_GAMEPAD_BUTTON_START:      pads.press(pad, PadButton::Play, down); break;
-        case SDL_GAMEPAD_BUTTON_BACK:       pads.press(pad, PadButton::Stop, down); break;
-        case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:  pads.press(pad, PadButton::LeftShift, down); break;
-        case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: pads.press(pad, PadButton::RightShift, down); break;
+        case SDL_GAMEPAD_BUTTON_SOUTH:      pads.press(pad, RETRO3DO_PAD_A, down); break;
+        case SDL_GAMEPAD_BUTTON_EAST:       pads.press(pad, RETRO3DO_PAD_B, down); break;
+        case SDL_GAMEPAD_BUTTON_WEST:       pads.press(pad, RETRO3DO_PAD_C, down); break;
+        case SDL_GAMEPAD_BUTTON_START:      pads.press(pad, RETRO3DO_PAD_PLAY, down); break;
+        case SDL_GAMEPAD_BUTTON_BACK:       pads.press(pad, RETRO3DO_PAD_STOP, down); break;
+        case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:  pads.press(pad, RETRO3DO_PAD_LEFT_SHIFT, down); break;
+        case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: pads.press(pad, RETRO3DO_PAD_RIGHT_SHIFT, down); break;
         default: break;
     }
 }
@@ -1109,7 +1146,7 @@ void App::apply_gamepad_button(int slot, int button, bool down) {
 // on and off is worse than one that does not work: it walks a menu cursor away
 // on its own. Pushing IN takes more than letting go does.
 void App::apply_gamepad_axis(int slot, int axis, s16 value) {
-    PadState& pads = console_->pads();
+    const PadWriter pads{emu_};
     const u32 pad = static_cast<u32>(slot);
 
     // The shoulder buttons are the 3DO's only shoulder controls, so a trigger
@@ -1118,20 +1155,20 @@ void App::apply_gamepad_axis(int slot, int axis, s16 value) {
     if (axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER ||
         axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) {
         constexpr s16 kTriggerOn = 12000;
-        const PadButton button = (axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER)
-                                     ? PadButton::LeftShift
-                                     : PadButton::RightShift;
+        const retro3do_pad_button button = (axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER)
+                                     ? RETRO3DO_PAD_LEFT_SHIFT
+                                     : RETRO3DO_PAD_RIGHT_SHIFT;
         pads.press(pad, button, value > kTriggerOn);
         return;
     }
 
     int index;
-    PadButton negative;
-    PadButton positive;
+    retro3do_pad_button negative;
+    retro3do_pad_button positive;
     if (axis == SDL_GAMEPAD_AXIS_LEFTX) {
-        index = 0; negative = PadButton::Left; positive = PadButton::Right;
+        index = 0; negative = RETRO3DO_PAD_LEFT; positive = RETRO3DO_PAD_RIGHT;
     } else if (axis == SDL_GAMEPAD_AXIS_LEFTY) {
-        index = 1; negative = PadButton::Up; positive = PadButton::Down;
+        index = 1; negative = RETRO3DO_PAD_UP; positive = RETRO3DO_PAD_DOWN;
     } else {
         return;   // the right stick has nothing on this machine to drive
     }
@@ -1170,7 +1207,7 @@ void App::tick() {
     if (backgrounded_.load(std::memory_order_acquire) ||
         (resume_after != 0 && SDL_GetTicks() < resume_after)) {
         if (!lifecycle_pause_applied_) {
-            emulator_->set_paused(true);
+            retro3do_set_paused(emu_, true);
             lifecycle_pause_applied_ = true;
         }
         if (backgrounded_.load(std::memory_order_acquire)) suspend_renderer();
@@ -1183,7 +1220,7 @@ void App::tick() {
     }
     render_resume_after_ms_.store(0, std::memory_order_release);
     if (lifecycle_pause_applied_) {
-        emulator_->set_paused(!emulating_);
+        retro3do_set_paused(emu_, !emulating_);
         lifecycle_pause_applied_ = false;
     }
 
@@ -1257,10 +1294,11 @@ void App::tick() {
     // rate says whether the machine is keeping up, while the display's says
     // whether the app feels smooth. Showing the display rate alone would hide
     // a machine running at half speed behind a perfectly smooth window.
-    const EmulatorStats emu = emulator_->stats();
+    retro3do_stats emu;
+    retro3do_get_stats(emu_, &emu);
     const UiIntent intent =
-        ui_->build(*console_, emulating_, smoothed_fps, emu.emulated_fps,
-                   emu.frame_ms, console_->audio().underruns(), touch_->enabled(),
+        ui_->build(emu_, emulating_, smoothed_fps, emu.emulated_fps,
+                   emu.frame_ms, emu.audio_underruns, touch_->enabled(),
                    touch_->editing());
 
     if (intent.bios_folder_chosen) {
@@ -1330,22 +1368,22 @@ void App::tick() {
             settings_->save();
             SDL_Log("BIOS loaded");
         } else {
-            SDL_Log("%s", console_->last_error().c_str());
+            SDL_Log("%s", retro3do_last_error(emu_));
         }
     }
     if (intent.start_demo) {
         // Stop at a frame boundary before replacing the ROM. The demo never
         // changes the remembered user BIOS and deliberately runs with no disc.
-        emulator_->set_paused(true);
-        console_->eject_disc();
-        if (console_->load_builtin_demo()) {
-            console_->reset();
+        retro3do_set_paused(emu_, true);
+        retro3do_eject_disc(emu_);
+        if (retro3do_load_demo(emu_)) {
+            retro3do_reset(emu_);
             emulating_ = true;
-            emulator_->set_paused(false);
+            retro3do_set_paused(emu_, false);
             SDL_Log("Started built-in original demo ROM");
         } else {
             emulating_ = false;
-            SDL_Log("%s", console_->last_error().c_str());
+            SDL_Log("%s", retro3do_last_error(emu_));
         }
     }
     bool selected_disc_ready = false;
@@ -1358,41 +1396,46 @@ void App::tick() {
             }
             save_settings();
             selected_disc_ready = true;
-            SDL_Log("Disc inserted (%u sectors)", console_->disc().sector_count());
+            retro3do_disc_info disc;
+            if (retro3do_get_disc_info(emu_, &disc)) {
+                SDL_Log("Disc inserted (%u sectors)", disc.sector_count);
+            }
         } else {
             if (intent.start_disc) ui_->show_launcher();
-            SDL_Log("%s", console_->last_error().c_str());
+            SDL_Log("%s", retro3do_last_error(emu_));
         }
     }
     if (intent.eject) {
-        console_->eject_disc();
+        retro3do_eject_disc(emu_);
     }
     if (intent.reset) {
-        emulator_->request_reset();
-        emulating_ = console_->bios_loaded();
-        emulator_->set_paused(!emulating_);
+        retro3do_request_reset(emu_);
+        emulating_ = (retro3do_bios_loaded(emu_) != 0);
+        retro3do_set_paused(emu_, !emulating_);
     }
     if (intent.start_disc && selected_disc_ready) {
-        emulator_->request_reset();
-        emulating_ = console_->bios_loaded();
-        emulator_->set_paused(!emulating_);
+        retro3do_request_reset(emu_);
+        emulating_ = (retro3do_bios_loaded(emu_) != 0);
+        retro3do_set_paused(emu_, !emulating_);
     }
     if (intent.toggle_pause) {
         emulating_ = !emulating_;
-        emulator_->set_paused(!emulating_);
+        retro3do_set_paused(emu_, !emulating_);
     }
     if (intent.region_changed) {
         // A region change resizes the framebuffer, so the emulator must not be
         // midway through a frame when it happens.
-        emulator_->set_paused(true);
-        console_->set_region(intent.set_region_pal ? Region::Pal : Region::Ntsc);
-        mailbox_->resize(console_->framebuffer().width,
-                         console_->framebuffer().height);
-        emulator_->set_paused(!emulating_);
+        retro3do_set_paused(emu_, true);
+        retro3do_set_region(emu_, intent.set_region_pal ? RETRO3DO_REGION_PAL
+                                                        : RETRO3DO_REGION_NTSC);
+        // No buffer to resize here any more: the core notices the field it is
+        // producing has changed shape and re-sizes its own mailbox, which is
+        // the only place that ever knew both sizes at once.
+        retro3do_set_paused(emu_, !emulating_);
         save_settings();
     }
     if (intent.cpu_scale_changed) {
-        console_->set_cpu_scale_percent(intent.cpu_scale_percent);
+        retro3do_set_cpu_scale_percent(emu_, intent.cpu_scale_percent);
         save_settings();
     }
     if (intent.toggle_touch_controls) {
@@ -1461,9 +1504,65 @@ void App::tick() {
     SDL_RenderPresent(renderer_);
 }
 
+// How much of a frame is actually a picture: pixels differing from that frame's
+// commonest colour.
+//
+// Counting non-black pixels instead stops measuring anything the moment a title
+// programs a non-black background - every pixel is then "lit" and a blank screen
+// scores full marks. This is the same measure gamecheck applies to the core, so
+// the two report comparable numbers.
+static int lit_pixel_count(const u32* pixels, int count) {
+    std::unordered_map<u32, int> histogram;
+    for (int i = 0; i < count; ++i) {
+        ++histogram[pixels[i]];
+    }
+    int commonest = 0;
+    for (const auto& entry : histogram) {
+        commonest = entry.second > commonest ? entry.second : commonest;
+    }
+    return count - commonest;
+}
+
 int App::run() {
+    selftest_started_ms_ = SDL_GetTicks();
     while (running_) {
         tick();
+        ++display_frames_;
+
+        if (selftest_seconds_ > 0.0) {
+            const double elapsed =
+                static_cast<double>(SDL_GetTicks() - selftest_started_ms_) / 1000.0;
+            if (elapsed >= selftest_seconds_) {
+                running_ = false;
+            }
+        }
+    }
+
+    if (selftest_seconds_ > 0.0) {
+        retro3do_stats stats;
+        retro3do_get_stats(emu_, &stats);
+        selftest_.frames_emulated = stats.frames_emulated;
+        selftest_.display_frames = display_frames_;
+        selftest_.emulated_fps = stats.emulated_fps;
+
+        retro3do_frame frame;
+        if (retro3do_current_frame(emu_, &frame) != 0) {
+            selftest_.lit_pixels = lit_pixel_count(frame.pixels,
+                                                   frame.width * frame.height);
+        }
+        // A machine that emulated nothing, or one whose picture never stopped
+        // being a single flat colour, has failed however cleanly it exited.
+        selftest_.ok = selftest_.frames_emulated > 0 &&
+                       selftest_.display_frames > 0 &&
+                       selftest_.lit_pixels > 0;
+
+        SDL_Log("selftest: %llu frames emulated (%.1f fps), %llu displayed, "
+                "%d lit pixels -- %s",
+                static_cast<unsigned long long>(selftest_.frames_emulated),
+                selftest_.emulated_fps,
+                static_cast<unsigned long long>(selftest_.display_frames),
+                selftest_.lit_pixels, selftest_.ok ? "PASS" : "FAIL");
+        return selftest_.ok ? 0 : 1;
     }
     return 0;
 }

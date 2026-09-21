@@ -13,7 +13,7 @@
 
 #include "backends/imgui_impl_sdl3.h"
 #include "backends/imgui_impl_sdlrenderer3.h"
-#include "core/console.h"
+#include "retro3do.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "platform/android_storage.h"
@@ -594,7 +594,7 @@ void Ui::apply_safe_area() {
 }
 
 
-UiIntent Ui::build(Console& console, bool emulating, double display_fps,
+UiIntent Ui::build(retro3do_t* emu, bool emulating, double display_fps,
                    double emulated_fps, double frame_ms, u64 underruns,
                    bool touch_visible, bool touch_editing) {
     UiIntent intent;
@@ -617,10 +617,10 @@ UiIntent Ui::build(Console& console, bool emulating, double display_fps,
     } else if (!setup_complete_) {
         menu_requested_ = false;
         poll_setup_picker(intent);
-        draw_setup_wizard(console, intent);
+        draw_setup_wizard(emu, intent);
     } else if (show_launcher_) {
         menu_requested_ = false;
-        draw_launcher(console, emulating, touch_visible, touch_editing, intent);
+        draw_launcher(emu, emulating, touch_visible, touch_editing, intent);
     } else {
         if (menu_requested_) {
             if (quick_menu_) {
@@ -631,10 +631,10 @@ UiIntent Ui::build(Console& console, bool emulating, double display_fps,
             }
             menu_requested_ = false;
         }
-        draw_overlay(console, emulating, display_fps, emulated_fps, frame_ms,
+        draw_overlay(emu, emulating, display_fps, emulated_fps, frame_ms,
                      underruns, touch_visible, touch_editing, intent);
         if (quick_menu_) {
-            draw_quick_menu(console, emulating, touch_visible, touch_editing,
+            draw_quick_menu(emu, emulating, touch_visible, touch_editing,
                             intent);
         }
     }
@@ -710,7 +710,7 @@ void Ui::poll_setup_picker(UiIntent& intent) {
     wizard_pick_ = WizardPick::None;
 }
 
-void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
+void Ui::draw_setup_wizard(retro3do_t* emu, UiIntent& intent) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
@@ -794,13 +794,13 @@ void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
             }
             if (wizard_pick_ == WizardPick::Bios) {
                 ImGui::TextColored(kAmber, "Waiting for Android folder selection...");
-            } else if (console.bios_loaded()) {
+            } else if (retro3do_bios_loaded(emu)) {
                 ImGui::TextColored(kGreen, "BIOS found and loaded successfully");
             } else if (!bios_folder_target_.empty()) {
                 ImGui::TextColored(kRed,
                                    "No valid BIOS was found. Choose another folder.");
             }
-            ImGui::BeginDisabled(!console.bios_loaded());
+            ImGui::BeginDisabled(!retro3do_bios_loaded(emu));
             if (wide_button("CONTINUE", 42.0f * scale_)) {
                 wizard_step_ = WizardStep::Games;
             }
@@ -909,7 +909,7 @@ void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
     ImGui::End();
 }
 
-void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
+void Ui::draw_launcher(retro3do_t* emu, bool emulating, bool touch_visible,
                        bool touch_editing, UiIntent& intent) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -995,12 +995,12 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
     ImGui::BeginChild("##page", ImVec2(0.0f, 0.0f), ImGuiChildFlags_None,
                       page_flags);
     switch (page_) {
-        case Page::Library:  draw_library(console, intent); break;
-        case Page::Settings: draw_settings(console, touch_visible, touch_editing,
+        case Page::Library:  draw_library(emu, intent); break;
+        case Page::Settings: draw_settings(emu, touch_visible, touch_editing,
                                            intent); break;
         case Page::Artwork:  draw_artwork(intent); break;
         case Page::Downloads: draw_downloads(intent); break;
-        case Page::System:   draw_system(console, intent); break;
+        case Page::System:   draw_system(emu, intent); break;
         case Page::About:    draw_about(); break;
     }
     ImGui::EndChild();
@@ -1009,7 +1009,7 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
     draw_file_browser(intent);
 }
 
-void Ui::draw_library(Console& console, UiIntent& intent) {
+void Ui::draw_library(retro3do_t* emu, UiIntent& intent) {
     alphabet_filter(library_group_, kCyan, scale_);
 
     const float rescan_width = 165.0f * scale_;
@@ -1163,7 +1163,7 @@ void Ui::draw_library(Console& console, UiIntent& intent) {
             ImGui::SetCursorScreenPos(
                 ImVec2(content_left,
                        card_bottom.y - padding - button_height));
-            ImGui::BeginDisabled(!console.bios_loaded() || console.demo_loaded());
+            ImGui::BeginDisabled(!retro3do_bios_loaded(emu) || retro3do_demo_loaded(emu));
             ImGui::PushStyleColor(ImGuiCol_Button, tinted(accent, 0.13f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
                                   tinted(accent, 0.30f));
@@ -1205,18 +1205,18 @@ void Ui::draw_library(Console& console, UiIntent& intent) {
     ImGui::SetCursorScreenPos(grid_end);
     ImGui::Dummy(ImVec2(0.0f, 0.0f));
 
-    if (!console.bios_loaded() || console.demo_loaded()) {
+    if (!retro3do_bios_loaded(emu) || retro3do_demo_loaded(emu)) {
         ImGui::Spacing();
         ImGui::TextColored(
             kAmber,
-            console.demo_loaded()
+            retro3do_demo_loaded(emu)
                 ? "The built-in demo cannot boot games. Load your 3DO BIOS on the System page."
                 : "Load a 3DO BIOS on the System page before playing.");
     }
     ImGui::EndChild();
 }
 
-void Ui::draw_settings(Console& console, bool touch_visible, bool touch_editing,
+void Ui::draw_settings(retro3do_t* emu, bool touch_visible, bool touch_editing,
                        UiIntent& intent) {
     page_heading("SETTINGS", "Controls and machine timing");
 
@@ -1245,7 +1245,7 @@ void Ui::draw_settings(Console& console, bool touch_visible, bool touch_editing,
 
     ImGui::Separator();
     ImGui::TextColored(kGreen, "VIDEO STANDARD");
-    int region = console.region() == Region::Pal ? 1 : 0;
+    int region = retro3do_get_region(emu) == RETRO3DO_REGION_PAL ? 1 : 0;
     if (ImGui::RadioButton("NTSC 60 Hz", &region, 0)) {
         intent.region_changed = true;
         intent.set_region_pal = false;
@@ -1261,7 +1261,7 @@ void Ui::draw_settings(Console& console, bool touch_visible, bool touch_editing,
     begin_panel("##machine_settings", column_width, stacked);
     ImGui::TextColored(kAmber, "ARM CPU BOOST");
     ImGui::TextColored(kMuted, "Game CPU only; audio, video and FMV keep native timing.");
-    int cpu = static_cast<int>(console.cpu_scale_percent());
+    int cpu = static_cast<int>(retro3do_get_cpu_scale_percent(emu));
     const int speeds[] = {100, 125, 150};
     const char* speed_names[] = {"100%", "125%", "150%"};
     for (int i = 0; i < 3; ++i) {
@@ -1477,7 +1477,7 @@ void Ui::draw_downloads(UiIntent& intent) {
     ImGui::EndChild();
 }
 
-void Ui::draw_system(Console& console, UiIntent& intent) {
+void Ui::draw_system(retro3do_t* emu, UiIntent& intent) {
     page_heading("SYSTEM", "Renderer, screen presentation and storage");
 
     const float gap = ImGui::GetStyle().ItemSpacing.x;
@@ -1568,10 +1568,10 @@ void Ui::draw_system(Console& console, UiIntent& intent) {
                                                  : bios_target_;
         intent.bios_name = bios_path_buffer_;
     }
-    ImGui::TextColored(console.bios_loaded() ? kGreen : kAmber,
-                       console.demo_loaded()
+    ImGui::TextColored(retro3do_bios_loaded(emu) ? kGreen : kAmber,
+                       retro3do_demo_loaded(emu)
                            ? "Built-in original demo ROM loaded"
-                           : (console.bios_loaded() ? "BIOS loaded - system ready"
+                           : (retro3do_bios_loaded(emu) ? "BIOS loaded - system ready"
                                                    : "No BIOS loaded"));
 
     ImGui::Separator();
@@ -1592,14 +1592,15 @@ void Ui::draw_system(Console& console, UiIntent& intent) {
                                                  : disc_target_;
         intent.disc_name = disc_path_buffer_;
     }
-    if (console.disc_loaded()) {
-        const Disc& disc = console.disc();
-        ImGui::TextColored(kGreen, "Disc ready - %u sectors / %zu track%s",
-                           disc.sector_count(), disc.tracks().size(),
-                           disc.tracks().size() == 1 ? "" : "s");
+    if (retro3do_disc_loaded(emu)) {
+        retro3do_disc_info disc;
+        retro3do_get_disc_info(emu, &disc);
+        ImGui::TextColored(kGreen, "Disc ready - %u sectors / %u track%s",
+                           disc.sector_count, disc.track_count,
+                           disc.track_count == 1 ? "" : "s");
         if (ImGui::Button("EJECT")) intent.eject = true;
         same_line_if_fits("START CURRENT DISC");
-        ImGui::BeginDisabled(!console.bios_loaded() || console.demo_loaded());
+        ImGui::BeginDisabled(!retro3do_bios_loaded(emu) || retro3do_demo_loaded(emu));
         if (ImGui::Button("START CURRENT DISC")) {
             intent.reset = true;
             session_available_ = true;
@@ -1702,7 +1703,7 @@ void Ui::open_quick_menu(bool emulating, UiIntent& intent) {
     if (emulating) intent.toggle_pause = true;
 }
 
-void Ui::draw_overlay(Console& console, bool emulating, double display_fps,
+void Ui::draw_overlay(retro3do_t* emu, bool emulating, double display_fps,
                       double emulated_fps, double frame_ms, u64 underruns,
                       bool touch_visible, bool touch_editing, UiIntent& intent) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -1742,12 +1743,14 @@ void Ui::draw_overlay(Console& console, bool emulating, double display_fps,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
                      ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
                      ImGuiWindowFlags_NoNav);
-    const double target = console.region() == Region::Pal ? 50.0 : 60.0;
+    const double target = retro3do_get_region(emu) == RETRO3DO_REGION_PAL ? 50.0 : 60.0;
     ImGui::TextColored(emulated_fps >= target - 2.0 ? kGreen : kAmber,
                        "Machine %.0f / %.0f fps", emulated_fps, target);
     ImGui::Text("Display %.0f fps   Frame %.2f ms", display_fps, frame_ms);
-    ImGui::Text("ARM %u%%   PC %08X", console.cpu_scale_percent(),
-                console.cpu().pc());
+    retro3do_stats stats;
+    retro3do_get_stats(emu, &stats);
+    ImGui::Text("ARM %u%%   PC %08X", retro3do_get_cpu_scale_percent(emu),
+                stats.cpu_pc);
     if (underruns > 0) {
         ImGui::TextColored(kRed, "Audio gaps %llu",
                            static_cast<unsigned long long>(underruns));
@@ -1755,7 +1758,7 @@ void Ui::draw_overlay(Console& console, bool emulating, double display_fps,
     ImGui::End();
 }
 
-void Ui::draw_quick_menu(Console& console, bool emulating, bool touch_visible,
+void Ui::draw_quick_menu(retro3do_t* emu, bool emulating, bool touch_visible,
                          bool touch_editing, UiIntent& intent) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::GetBackgroundDrawList()->AddRectFilled(
@@ -1802,7 +1805,7 @@ void Ui::draw_quick_menu(Console& console, bool emulating, bool touch_visible,
 
     ImGui::Spacing();
     ImGui::TextColored(kCyan, "ARM CPU BOOST");
-    int cpu = static_cast<int>(console.cpu_scale_percent());
+    int cpu = static_cast<int>(retro3do_get_cpu_scale_percent(emu));
     const int values[] = {100, 125, 150};
     const char* labels[] = {"100%", "125%", "150%"};
     for (int i = 0; i < 3; ++i) {

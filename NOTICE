@@ -6,20 +6,25 @@ in LICENSE. That licence permits use, modification, distribution,
 sublicensing and sale, subject to preserving its copyright and permission
 notice.
 
+The emulation core is a separate project, Retro3DO Core, carried here as the
+core submodule and shared with the iOS application that emulates the same
+machine. It is MIT licensed under the same copyright, and its own components,
+notices and provenance are recorded in core/NOTICE and core/docs/THIRD_PARTY.md
+- including libchdr (BSD-3-Clause) and the portions informed by MAME.
+
 The application also contains separately licensed components. Their copyright
-and licence terms remain in force and are collected in docs/THIRD_PARTY.md and
-the corresponding third_party/* licence files. They include SDL3 (zlib), Dear
-ImGui (MIT), libchdr (BSD-3-Clause), AdrenoTools (BSD-2-Clause), miniz (MIT),
-the LZMA SDK (public domain) and zstd (BSD selected). Portions informed by
-MAME carry the BSD-3-Clause notices recorded in docs/THIRD_PARTY.md.
+and licence terms remain in force and are collected in the corresponding
+third_party/* licence files. They are SDL3 (zlib), Dear ImGui (MIT) and
+AdrenoTools (BSD-2-Clause).
 
 No commercial or third-party 3DO BIOS, game image, or RetroMedia catalogue
 content is included under the Retro-3DO software licence. The application does
-include the small project-owned demonstration boot ROM whose complete source is
-in demo/. Users and distributors are responsible for having the rights to any
+include, by way of the core, the small project-owned demonstration boot ROM
+whose complete source is in demo/. Users and distributors are responsible for having the rights to any
 other BIOS, games, artwork and custom GPU drivers they supply.
 
-Historical reference-source exposure is documented in docs/PROVENANCE.md.
+Historical reference-source exposure is documented in
+core/docs/PROVENANCE.md.
 FreeDO/Opera source is not compiled or vendored in this repository, but FreeDO
 was studied during development and its published notice purports to require
 owner approval for commercial use of knowledge obtained from it. The Retro-3DO

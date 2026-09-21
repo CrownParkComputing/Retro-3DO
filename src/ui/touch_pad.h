@@ -12,9 +12,9 @@
 #include <string>
 #include <vector>
 
-#include "core/pad.h"
-#include "core/pad_layout.h"
-#include "core/types.h"
+#include "retro3do.h"
+#include "app/pad_layout.h"
+#include "app/types.h"
 
 struct SDL_Renderer;
 union SDL_Event;
@@ -63,7 +63,7 @@ public:
     // Feed touches and mouse. Returns true if the event was consumed, so the
     // caller does not also treat it as something else.
     bool handle_event(const SDL_Event& event, int window_width, int window_height,
-                      PadState& pads);
+                      retro3do_t* emu);
 
     void draw(SDL_Renderer* renderer, int window_width, int window_height) const;
 

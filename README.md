@@ -2,7 +2,7 @@
 
 A new 3DO Interactive Multiplayer emulator codebase for phones, tablets and
 desktops. Its historical reference exposure is disclosed in
-[docs/PROVENANCE.md](docs/PROVENANCE.md).
+[core/docs/PROVENANCE.md](core/docs/PROVENANCE.md).
 
 One C++ codebase builds for Android, iOS, macOS, Linux and Windows. There is no
 per-platform front end: SDL provides the window, input, audio and GPU on every
@@ -12,7 +12,7 @@ target, and Dear ImGui draws the launcher and the in-game overlay.
 > is mounted through XBUS/MADAM DMA, and the ARM, CEL, matrix and DSP paths run
 > commercial titles. Compatibility is still in progress, but Road Rash and The
 > Need for Speed both boot into correctly rendered gameplay. See
-> [Roadmap](#roadmap) and the [Opera parity audit](docs/OPERA_AUDIT.md).
+> [Roadmap](#roadmap) and the [Opera parity audit](core/docs/OPERA_AUDIT.md).
 
 ## Why this exists as a separate core
 
@@ -30,7 +30,7 @@ presents from the emulation path at all.
 direct-port routines have been replaced with implementations structured around
 public ARM/3DO documentation, patents and focused tests. The project is still
 historically reference-exposed; replacing code does not make its development
-history clean-room. [docs/PROVENANCE.md](docs/PROVENANCE.md) records both facts.
+history clean-room. [core/docs/PROVENANCE.md](core/docs/PROVENANCE.md) records both facts.
 
 ## Building
 
@@ -108,10 +108,11 @@ and submit.
 ## Layout
 
 ```
-core/           submodule: the 3DO itself, and libchdr. No platform headers, ever.
-src/platform/   SDL: window, events, pacing, presentation
+core/           submodule: the 3DO itself, reached only through retro3do.h
+src/app/        the front end's own non-UI parts: settings, paths, pad layout
+src/platform/   SDL: window, events, presentation
 src/ui/         Dear ImGui: launcher and overlay
-tests/          host-side tests
+tests/          host-side tests for what this repository owns
 android/        Gradle shell around the shared CMake tree
 macos/          the same, for the desktop bundle: plist, entitlements, script
 assets/apple/   asset catalogue, compiled into the icon by actool
@@ -119,11 +120,55 @@ assets/apple/   asset catalogue, compiled into the icon by actool
 
 `core/` is [retro3do-core](https://github.com/CrownParkComputing/retro3do-core),
 which used to be `src/core/` here. It moved out because a second application --
-the iOS one -- needs the same emulator, and a core that only builds inside one
-app gets copied into the other and then the two drift apart.
+[Clio](https://github.com/CrownParkComputing/Clio), the iOS one -- needs the
+same emulator, and a core that only builds inside one app gets copied into the
+other and then the two drift apart.
 
-The rule that keeps this working: if something in `core/` ever needs a platform
-header, it belongs in `src/platform/` instead.
+### The boundary
+
+This application reaches the core through **`retro3do.h` and nothing else**. It
+is a plain C interface over an opaque handle, and the core's CMake target
+exports only its `include/` directory, so a machine header cannot be included
+from this side even by accident. That is deliberate: the other application is
+written in Swift, and an interface only one of the two can consume is not an
+interface.
+
+What that means in practice:
+
+- **The core owns the emulator thread and the pacing policy.** The application
+  asks it to start, stop and pause; it does not own a thread of its own. The
+  previous 3DO core stacked three independent frame-droppers on top of each
+  other and reported itself healthy while dropping most of its frames -- one
+  policy in one place is the fix, and two front ends each carrying a copy of it
+  is how that fix would be lost.
+- **The machine's tests live with the machine.** ARM60, the bus, MADAM, CLIO,
+  VDLP, SPORT, the DSP, discs and CHD are checked in the core repository, along
+  with a suite that drives `retro3do.h` exactly as an application does. What is
+  tested here is what this repository owns.
+- **Instruments go with the core too.** `gamecheck` and the Opera oracle read
+  the machine's internals, which is what makes them useful and what no front end
+  may do.
+- If something in `core/` ever needs a platform header, it belongs in
+  `src/platform/` instead. If the application needs something the core will not
+  tell it, the answer is to add it to `retro3do.h` -- never to widen the include
+  path.
+
+### Checking the front end without a screen
+
+The unit tests cannot tell you that frames are reaching the window, because a
+front end is the one part of an emulator they cannot reach. This can:
+
+```sh
+SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy \
+    ./retro3do --selftest 10 /path/to/bios.bin /path/to/disc.chd
+```
+
+It runs the whole application -- window, event pump, emulator thread,
+presentation -- for ten seconds with nobody in front of it and reports frames
+emulated, frames displayed, and how much of the last picture is content rather
+than one flat colour. It exits non-zero if the machine emulated nothing or never
+drew anything, so a build machine with no display can still tell a working
+application from one that comes up blank.
 
 ## Roadmap
 
@@ -156,6 +201,6 @@ header, it belongs in `src/platform/` instead.
 ## Licence
 
 Project-owned code is MIT licensed; see [LICENSE](LICENSE). Bundled components
-retain their own terms, collected in [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).
+retain their own terms, collected in [core/docs/THIRD_PARTY.md](core/docs/THIRD_PARTY.md).
 The distribution and historical reference-source notices in [NOTICE](NOTICE)
-and [docs/PROVENANCE.md](docs/PROVENANCE.md) are part of the release record.
+and [core/docs/PROVENANCE.md](core/docs/PROVENANCE.md) are part of the release record.

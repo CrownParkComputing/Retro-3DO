@@ -3,7 +3,7 @@
 // Navigation in the file browser rests entirely on parent(): if it is wrong,
 // a phone user cannot go up a level and is simply stuck, with no keyboard to
 // type their way out of it. So the edge cases get their own assertions.
-#include "core/path.h"
+#include "app/path.h"
 #include "test_harness.h"
 
 using namespace retro3do;

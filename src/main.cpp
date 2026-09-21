@@ -6,6 +6,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+#include <cstdlib>
 #include <string>
 
 #include "platform/app.h"
@@ -30,10 +31,25 @@ int main(int argc, char* argv[]) {
     // previous run remembered. Without this the emulator can only be pointed at
     // a file through the GUI, which makes it awkward to test and impossible to
     // script.
-    const bool demo = argc > 1 && std::string(argv[1]) == "--demo";
+    //
+    // retro3do --selftest <seconds> [bios] [disc] runs the whole application
+    // with nobody in front of it and reports what reached the screen. Under
+    // SDL_VIDEODRIVER=offscreen it needs no display at all, which is what makes
+    // the front end checkable on a build machine: the unit tests cover the
+    // machine, and nothing else can tell you frames are arriving.
+    int first = 1;
+    double selftest = 0.0;
+    if (argc > 2 && std::string(argv[1]) == "--selftest") {
+        selftest = std::atof(argv[2]);
+        first = 3;
+    }
+    app.set_selftest_seconds(selftest);
+
+    const bool demo = argc > first && std::string(argv[first]) == "--demo";
+    if (demo) ++first;
     app.set_launch_demo(demo);
-    app.set_launch_files(!demo && argc > 1 ? argv[1] : "",
-                         !demo && argc > 2 ? argv[2] : "");
+    app.set_launch_files(argc > first ? argv[first] : "",
+                         argc > first + 1 ? argv[first + 1] : "");
 
     if (!app.init()) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s", app.last_error().c_str());

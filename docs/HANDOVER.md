@@ -10,7 +10,7 @@ These override defaults. Do not re-litigate them.
   `~/StudioProjects/4DO-Android/app/cpp/native_core/`, copied to
   `~/retro3do-work/oracle/src/`. Reading it is sanctioned. If stuck, Opera
   itself is also permitted.
-- **Provenance has now had a full retrospective.** `docs/PROVENANCE.md`
+- **Provenance has now had a full retrospective.** `core/docs/PROVENANCE.md`
   distinguishes historical FreeDO/Opera exposure from the public authority and
   independently structured algorithm used by each current module. Do not call
   the history clean-room; do not call the current old-port routines unchanged.
@@ -29,7 +29,7 @@ These override defaults. Do not re-litigate them.
 the reference at frame 20,000: Killing Time and Alone in the Dark 2. Flashback
 differs by 4.75%, which is animation phase.
 
-Library at 20,000 frames (`tools/gamecheck/expectations.txt` holds the floors):
+Library at 20,000 frames (`core/tools/gamecheck/expectations.txt` holds the floors):
 
 | Title | cels | screens | note |
 |---|---|---|---|
@@ -157,7 +157,7 @@ Regression run (about 17 minutes):
 
 ```
 ./build/gamecheck ~/3do-library/bios/panafz10.bin ~/3do-library/games \
-  --frames 20000 --expect tools/gamecheck/expectations.txt
+  --frames 20000 --expect core/tools/gamecheck/expectations.txt
 ```
 
 Pixel comparison against reference frames (`or_kt.ppm`, `ref_aitd2.ppm`,

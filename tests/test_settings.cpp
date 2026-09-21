@@ -6,7 +6,7 @@
 // hand on a device with no debugger attached.
 #include <cstdio>
 
-#include "core/settings.h"
+#include "app/settings.h"
 #include "test_harness.h"
 
 using namespace retro3do;

@@ -6,7 +6,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "core/types.h"
+#include "retro3do.h"
+#include "app/types.h"
 #include "ui/file_browser.h"
 #include "ui/game_library.h"
 
@@ -18,7 +19,6 @@ union SDL_Event;
 
 namespace retro3do {
 
-class Console;
 struct RetroMediaArtwork;
 struct RetroMediaGame;
 
@@ -115,7 +115,7 @@ public:
     bool wants_mouse() const;
     bool wants_keyboard() const;
 
-    UiIntent build(Console& console, bool emulating, double display_fps,
+    UiIntent build(retro3do_t* emu, bool emulating, double display_fps,
                    double emulated_fps, double frame_ms, u64 underruns,
                    bool touch_visible, bool touch_editing);
     void render(SDL_Renderer* renderer);
@@ -131,21 +131,21 @@ private:
     void apply_safe_area();
     void update_touch_scroll();
     void draw_splash();
-    void draw_setup_wizard(Console& console, UiIntent& intent);
+    void draw_setup_wizard(retro3do_t* emu, UiIntent& intent);
     void poll_setup_picker(UiIntent& intent);
-    void draw_launcher(Console& console, bool emulating, bool touch_visible,
+    void draw_launcher(retro3do_t* emu, bool emulating, bool touch_visible,
                        bool touch_editing, UiIntent& intent);
-    void draw_library(Console& console, UiIntent& intent);
-    void draw_settings(Console& console, bool touch_visible, bool touch_editing,
+    void draw_library(retro3do_t* emu, UiIntent& intent);
+    void draw_settings(retro3do_t* emu, bool touch_visible, bool touch_editing,
                        UiIntent& intent);
     void draw_artwork(UiIntent& intent);
     void draw_downloads(UiIntent& intent);
-    void draw_system(Console& console, UiIntent& intent);
+    void draw_system(retro3do_t* emu, UiIntent& intent);
     void draw_about();
-    void draw_overlay(Console& console, bool emulating, double display_fps,
+    void draw_overlay(retro3do_t* emu, bool emulating, double display_fps,
                       double emulated_fps, double frame_ms, u64 underruns,
                       bool touch_visible, bool touch_editing, UiIntent& intent);
-    void draw_quick_menu(Console& console, bool emulating, bool touch_visible,
+    void draw_quick_menu(retro3do_t* emu, bool emulating, bool touch_visible,
                          bool touch_editing, UiIntent& intent);
     void open_quick_menu(bool emulating, UiIntent& intent);
     void wake_menu_button();

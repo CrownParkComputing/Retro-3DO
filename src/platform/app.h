@@ -12,8 +12,8 @@
 #include <string>
 #include <vector>
 
-#include "core/pad.h"
-#include "core/types.h"
+#include "retro3do.h"
+#include "app/types.h"
 #include "ui/game_library.h"
 
 struct SDL_Window;
@@ -25,12 +25,9 @@ union SDL_Event;
 
 namespace retro3do {
 
-class Console;
 class Ui;
 class Settings;
 class TouchPad;
-class FrameMailbox;
-class EmulatorThread;
 
 class App {
 public:
@@ -49,10 +46,32 @@ public:
     void set_launch_files(std::string bios, std::string disc);
     void set_launch_demo(bool enabled) { launch_demo_ = enabled; }
 
+    // Run without a person in front of it for this many seconds, then report
+    // what the machine did and quit.
+    //
+    // A front end is the one part of an emulator that cannot be unit tested,
+    // and "it compiled" says nothing about whether frames are reaching the
+    // screen. This runs the whole application - window, event pump, emulator
+    // thread, presentation - under SDL_VIDEODRIVER=offscreen and prints what
+    // arrived, so a build machine with no display can still tell a working
+    // application from one that draws nothing.
+    void set_selftest_seconds(double seconds) { selftest_seconds_ = seconds; }
+
     bool init();
 
     // Run until the user quits. Returns the process exit code.
     int run();
+
+    // What a self-test run saw. Zero emulated frames, or a picture that never
+    // stopped being one flat colour, is a failure whatever else happened.
+    struct SelfTestResult {
+        u64 frames_emulated = 0;
+        u64 display_frames = 0;
+        double emulated_fps = 0.0;
+        int lit_pixels = 0;   // pixels differing from the frame's commonest colour
+        bool ok = false;
+    };
+    const SelfTestResult& selftest_result() const { return selftest_; }
 
     const std::string& last_error() const { return last_error_; }
 
@@ -99,28 +118,35 @@ private:
     int texture_width_  = 0;
     int texture_height_ = 0;
 
-    std::unique_ptr<Console> console_;
+    // The machine, the thread it runs on and the mailbox its frames arrive in
+    // are all behind this one handle. The application does not own an emulator
+    // thread any more: it asks the core to start and stop one, which is what
+    // keeps the pacing policy in a single place rather than in every front end
+    // that wraps this core.
+    retro3do_t* emu_ = nullptr;
+
     std::unique_ptr<Ui> ui_;
-    std::unique_ptr<FrameMailbox> mailbox_;
     std::unique_ptr<Settings> settings_;
     std::unique_ptr<TouchPad> touch_;
-    std::unique_ptr<EmulatorThread> emulator_;
 
     SDL_AudioStream* audio_stream_ = nullptr;
     bool audio_started_ = false;
     // One host controller per chained 3DO pad. Slot zero is also what the
     // keyboard and the on-screen controls drive, so it is never freed.
-    SDL_Gamepad* gamepads_[kMaxPads] = {};
+    SDL_Gamepad* gamepads_[RETRO3DO_MAX_PADS] = {};
 
     // Which way each analogue axis is currently being held, per pad. Kept so a
     // stick resting near the threshold cannot chatter: crossing out of a
     // direction needs a smaller push than crossing into it.
-    s8 axis_direction_[kMaxPads][2] = {};
+    s8 axis_direction_[RETRO3DO_MAX_PADS][2] = {};
 
     std::string launch_bios_;
     std::string launch_disc_;
     std::string actual_renderer_;
     std::string renderer_startup_message_;
+    double selftest_seconds_ = 0.0;
+    u64 selftest_started_ms_ = 0;
+    u64 display_frames_ = 0;
     bool start_on_launch_ = false;
     bool launch_demo_ = false;
     bool running_ = false;
@@ -134,6 +160,8 @@ private:
     int persisted_library_count_ = 0;
     // Reused across saves so a save does not allocate thirty-two kilobytes.
     std::vector<u8> nvram_scratch_;
+
+    SelfTestResult selftest_;
 
     std::string last_error_;
 };

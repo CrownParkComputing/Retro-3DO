@@ -73,9 +73,13 @@ option(RETRO3DO_USE_SYSTEM_SDL "Link the system SDL3 instead of the vendored one
 # platform or windowing dependency: if something in it ever needs a platform
 # header, that is the signal it belongs in src/platform instead.
 #
-# retro3do_core's include directory is the core repository root, so the
-# spelling stays `#include "core/bus.h"` exactly as it read when this was
-# src/core.
+# The core is reached through ONE header, retro3do.h, and that is enforced here
+# rather than asked for in a document: the core target exports only its include/
+# directory, so a machine header cannot be included from this side even by
+# accident. If something in the application needs to reach past retro3do.h, the
+# interface is missing something and the answer is to add it there -- not to
+# widen the include path, which would quietly put the two applications back to
+# depending on the shape of the emulator.
 # ---------------------------------------------------------------------------
 add_subdirectory(core)
 
@@ -131,8 +135,10 @@ target_link_libraries(imgui PUBLIC ${RETRO3DO_SDL_TARGET})
 # ---------------------------------------------------------------------------
 set(RETRO3DO_APP_SOURCES
     src/main.cpp
+    src/app/pad_layout.cpp
+    src/app/path.cpp
+    src/app/settings.cpp
     src/platform/app.cpp
-    src/platform/emulator_thread.cpp
     src/ui/ui.cpp
     src/ui/game_library.cpp
     src/ui/file_browser.cpp
@@ -237,8 +243,9 @@ if(APPLE)
         # Info.plist.in that reads like a corrupted checkout.
         message(FATAL_ERROR
             "This repository builds the Android and desktop applications. The "
-            "iOS app is a separate project; build it from its own repository, "
-            "with the core submodule shared between them.")
+            "iOS app is Clio -- github.com/CrownParkComputing/Clio -- written "
+            "in Swift against the same core, which both repositories carry as "
+            "the same submodule. Build it from there.")
     else()
         set_target_properties(retro3do PROPERTIES
             MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist.in
@@ -259,40 +266,34 @@ endif()
 # These run on the host with no window and no device. Per the project's testing
 # rule, a bug found on hardware gets reproduced here first.
 # ---------------------------------------------------------------------------
-# gamecheck boots a whole library headless and reports what each title did. It
-# needs discs, which are not in the repository, so it is a tool rather than a
-# test - point it at a library and it becomes one.
+# gamecheck and the Opera oracle moved to the core repository. They measure the
+# machine -- cels drawn, CD commands answered, sectors fetched -- so they need
+# the internals this side deliberately can no longer reach, and they are of no
+# use to a front end. Build them from core/ with RETRO3DO_CORE_TOOLS=ON.
 #
-# Not on iOS: a command-line executable in an iOS project is not merely useless
-# (there is no shell to run it from), it fails the build, because every product
-# in an iOS Xcode project has to be signed and a bare Mach-O has no bundle to
-# sign. The same goes for the test runner below.
-if(NOT IOS)
-    add_executable(gamecheck tools/gamecheck/gamecheck.cpp)
-    target_link_libraries(gamecheck PRIVATE retro3do_core)
-endif()
+# Not on iOS, there or here: a command-line executable in an iOS project is not
+# merely useless (there is no shell to run it from), it fails the build, because
+# every product in an iOS Xcode project has to be signed and a bare Mach-O has
+# no bundle to sign. The same goes for the test runner below.
 
 if(RETRO3DO_BUILD_TESTS AND NOT IOS)
     enable_testing()
+    # The machine's tests went with the machine: ARM60, the bus, MADAM, CLIO,
+    # VDLP, SPORT, the DSP, discs and CHD are all checked in the core
+    # repository, along with a suite that exercises retro3do.h exactly as an
+    # application sees it. What is left here is what this application owns.
     add_executable(retro3do_tests
         tests/test_main.cpp
-        tests/test_arm60.cpp
-        tests/test_audio_pad.cpp
-        tests/test_bus.cpp
-        tests/test_chd.cpp
-        tests/test_clio.cpp
-        tests/test_disc.cpp
-        tests/test_dsp.cpp
-        tests/test_frame_mailbox.cpp
         tests/test_game_library.cpp
-        tests/test_madam.cpp
         tests/test_pad_layout.cpp
         tests/test_path.cpp
         tests/test_settings.cpp
-        tests/test_sport.cpp
-        tests/test_vdlp.cpp
     )
-    target_sources(retro3do_tests PRIVATE src/ui/game_library.cpp)
+    target_sources(retro3do_tests PRIVATE
+        src/app/pad_layout.cpp
+        src/app/path.cpp
+        src/app/settings.cpp
+        src/ui/game_library.cpp)
     target_link_libraries(retro3do_tests PRIVATE retro3do_core)
     find_package(Threads REQUIRED)
     target_link_libraries(retro3do_tests PRIVATE Threads::Threads)
