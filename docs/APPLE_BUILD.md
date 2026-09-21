@@ -1,27 +1,58 @@
-# iOS and macOS: everything a Mac needs to take this over
+# macOS: everything a Mac needs to take this over
 
 Nothing in this document has been run. Every other target in this repository —
 Linux, Windows, Android — is built and tested from a Linux machine, and Apple
-platforms cannot be. What is here is the whole build set up as far as it can be
-set up without a Mac: the CMake targets, the two Info.plists, the entitlements,
-the icon catalogue, the export options and the two scripts. What is left is to
-run them on a Mac and fix whatever the first real toolchain says.
+platforms cannot be. What is here is the macOS build set up as far as it can be
+set up without a Mac: the CMake bundle target, the Info.plist, the entitlements,
+the icon catalogue and the script. What is left is to run it on a Mac and fix
+whatever the first real toolchain says.
 
 **Read [First run on a Mac](#first-run-on-a-mac) before anything else.** It is
 the list of things most likely to be wrong, and each entry says what the failure
 looks like so it is not mistaken for an emulator bug.
 
+## The iOS half of this document is gone, and where it went
+
+It used to describe two builds. The iPhone and iPad application is now
+[Clio](https://github.com/CrownParkComputing/Clio) — its own repository, its own
+application, written in Swift against the same core as a `core` submodule — and
+everything iOS-specific that was learned here went with it:
+
+- `ios/build-ios-macos.sh`, `ios/Info.plist.in`, `ios/ExportOptions.plist.in`
+  and an Apple asset catalogue generated for iOS.
+- The **storage trap**: `SDL_GetPrefPath` returns `Library/Application Support`
+  on iOS, and `UIFileSharingEnabled` exposes `Documents` **only** — so the
+  writable directory is the one folder on the device a user cannot put a file
+  into. The browser offers `Documents (Files app)` first because of this. Get it
+  the wrong way round and the app looks broken in a way nobody can diagnose: the
+  BIOS is plainly visible in the Files app and the emulator cannot see it.
+- **An icon must have no alpha channel.** App Store upload rejects one that does,
+  at processing, by email, hours later.
+- **`UILaunchScreen` as an empty dictionary**, so naming a storyboard does not
+  pull `ibtool` into a build that otherwise has no interface files. Add a real
+  storyboard only if validation objects.
+- **A command-line executable in an iOS project is not merely useless, it fails
+  the build** — every product must be signed. `gamecheck` and the test runner
+  are excluded from Apple builds here for that reason.
+- **Purpose strings are required for APIs the binary *links*, not only ones it
+  calls.** SDL links several, and a delivery missing one is accepted, given a
+  UUID, and discarded in processing as ITMS-90683.
+
+Do not re-add an iOS target to this project. `CMakeLists.txt` fails an iOS
+configure on purpose, naming Clio, so that this stays a decision rather than an
+accident.
+
 There is no iOS or macOS front end. The emulator, the launcher and the platform
 layer are the same sources Linux and Android build. SDL supplies the
-`UIApplication` on iOS and the `NSApplication` on macOS, and `SDL_Renderer`
-resolves to Metal on both. That is the whole port.
+`NSApplication` on macOS, `SDL_Renderer` resolves to Metal, and that is the
+whole port.
 
-## What was already there, and what changed
+## What changed for the macOS handover
 
-Already present: `ios/build-ios-macos.sh`, `ios/Info.plist.in`, and an `IOS`
-branch in `CMakeLists.txt`. Untested, but the right shape.
+Already present and untested, but the right shape: `macos/Info.plist.in` and an
+`APPLE` branch in `CMakeLists.txt`.
 
-Added or corrected for this handover:
+Added or corrected:
 
 - **`src/platform/platform.h`** — and this was a real bug, not tidying. The app
   decided "am I a handheld?" by testing `__APPLE__`, which is also defined on a
@@ -29,22 +60,11 @@ Added or corrected for this handover:
   d-pad drawn over it** and no obvious way out. `RETRO3DO_MOBILE` now asks the
   question properly, via `TargetConditionals.h` — the preprocessor alone cannot
   tell iOS from macOS.
-- **iOS storage order** — `SDL_GetPrefPath` returns `Library/Application
-  Support`, and `UIFileSharingEnabled` exposes `Documents` **only**. The
-  writable directory is therefore the one folder on the device a user cannot put
-  a file into. The browser now offers `Documents (Files app)` first. Wrong way
-  round, the app looks broken in a way nobody can diagnose: the BIOS is plainly
-  visible in the Files app and the emulator cannot see it.
 - **macOS bundle target** — `macos/Info.plist.in`, `macos/Retro3DO.entitlements`,
-  `macos/build-macos.sh`, plus the `APPLE`/`IOS` split in `CMakeLists.txt`.
+  `macos/build-macos.sh`, and the `APPLE` branch in `CMakeLists.txt`.
 - **Icons** — `assets/apple/Assets.xcassets`, generated from
-  `assets/branding/retro3do-icon-1024.png`: one 1024×1024 alpha-free image for
-  iOS (an icon with an alpha channel is rejected at upload), the full 16→1024
-  ladder for macOS.
-- **Host tools excluded from iOS builds** — `gamecheck` and the test runner are
-  command-line executables, and every product in an iOS project must be signed.
-  They failed the build, not merely wasted it.
-- **`ios/ExportOptions.plist.in`** — for `xcodebuild -exportArchive`.
+  `assets/branding/retro3do-icon-1024.png`: the full 16→1024 macOS ladder. The
+  iOS image that used to sit beside it went to Clio.
 
 ## Build it
 

@@ -89,21 +89,37 @@ is resized and cached in private app storage, then shown directly on library
 cards. Downloads happen only when the user presses **Download Missing
 Artwork**, and use that account's normal daily allowance/credit balance.
 
-### iOS and macOS
+### macOS
 
 ```sh
-ios/build-ios-macos.sh        # iPhone and iPad
 macos/build-macos.sh          # universal Retro-3DO.app
 ```
 
-Both are macOS-only, and deliberately so — a Linux cross-build can make
-something that sideloads but never something submittable, and `actool` (the app
-icon) and `codesign` exist nowhere else.
+macOS-only, and deliberately so — a Linux cross-build can make something that
+sideloads but never something submittable, and `actool` (the app icon) and
+`codesign` exist nowhere else.
 
-Neither has been run: everything else in this repository is built and tested
-from Linux. [docs/APPLE_BUILD.md](docs/APPLE_BUILD.md) is the handover — what is
-set up, what to expect on the first real Xcode run, and how to sign, notarise
-and submit.
+It has not been run: everything else in this repository is built and tested from
+Linux. [docs/APPLE_BUILD.md](docs/APPLE_BUILD.md) is the handover — what is set
+up, what to expect on the first real Xcode run, and how to sign and notarise.
+
+### iOS
+
+The iPhone and iPad application is **not here**. It is
+[Clio](https://github.com/CrownParkComputing/Clio), its own repository and its
+own application, written in Swift against the same core: this repository builds
+the Android and desktop applications, Clio builds the iOS one, and both carry
+`core/` as the same submodule pinned to the same commit.
+
+That is not tidiness. Apple rejected the family under guideline 4.3 because the
+apps were one workbench shipped several times with a different accent colour, so
+the iOS app has to be a genuinely different application rather than this one
+with a new icon — which means its own interface, its own repository, and no
+shared UI code at all.
+
+An iOS configure of *this* project fails on purpose, with a message naming Clio,
+rather than stopping later on a missing `Info.plist` that reads like a corrupted
+checkout.
 
 ## Layout
 
