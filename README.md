@@ -4,7 +4,7 @@ A new 3DO Interactive Multiplayer emulator codebase for phones, tablets and
 desktops. Its historical reference exposure is disclosed in
 [core/docs/PROVENANCE.md](core/docs/PROVENANCE.md).
 
-One C++ codebase builds for Android, iOS, macOS, Linux and Windows. There is no
+One C++ codebase builds for Android, macOS, Linux and Windows. There is no
 per-platform front end: SDL provides the window, input, audio and GPU on every
 target, and Dear ImGui draws the launcher and the in-game overlay.
 
@@ -122,6 +122,30 @@ rather than stopping later on a missing `Info.plist` that reads like a corrupted
 checkout.
 
 ## Layout
+
+### On-screen controls
+
+Android and desktop use the C++ `retro_touch_pad` controller also used by
+Retro-Saturn and Retro-Dosbox, with a 3DO profile: D-pad, A/B/C, L/R and Stop/Play.
+Open **Settings → On-screen controller → Edit Layout**, or **Menu → Edit Layout**
+while playing. Drag a group to move it; tap it to adjust size, spacing, visibility
+and opacity, switch between a D-pad and stick, or add individual buttons.
+**Done** returns to the previous screen; Escape/Back closes the settings popup
+first, then exits the editor.
+
+Layouts are saved as `pad_layout_3do.json` beside `settings.cfg`, using the same
+JSON format as the other apps. Older individual-button settings start with the
+grouped 3DO layout. The first shared-pad build imported those buttons as extras;
+those layouts are now backed up as `pad_layout_3do.json.legacy` and replaced
+automatically. New shared-pad customisations are retained. **Reset Layout**
+restores the grouped defaults. Connecting a physical controller hides the touch
+pad without changing its enabled setting.
+
+The shared overlay is kept in `src/ui/retro_touch_pad.{h,cpp}` (imported from
+Retro-Dosbox revision `dac7fc2`); `src/ui/touch_pad.*` adapts it to the 3DO input
+API and settings. Clio remains a separate iOS application.
+
+### Source tree
 
 ```
 core/           submodule: the 3DO itself, reached only through retro3do.h

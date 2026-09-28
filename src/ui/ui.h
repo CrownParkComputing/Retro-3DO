@@ -21,6 +21,7 @@ namespace retro3do {
 
 struct RetroMediaArtwork;
 struct RetroMediaGame;
+class TouchPad;
 
 // What the UI asks the application to do. It is consumed once per display
 // frame, keeping storage and machine mutations out of the drawing code.
@@ -40,6 +41,7 @@ struct UiIntent {
     bool toggle_touch_controls = false;
     bool toggle_layout_edit = false;
     bool reset_touch_layout = false;
+    bool touch_layout_changed = false;
     bool region_changed = false;
     bool set_region_pal = false;
     bool cpu_scale_changed = false;
@@ -117,7 +119,7 @@ public:
 
     UiIntent build(retro3do_t* emu, bool emulating, double display_fps,
                    double emulated_fps, double frame_ms, u64 underruns,
-                   bool touch_visible, bool touch_editing);
+                   TouchPad& touch);
     void render(SDL_Renderer* renderer);
 
 private:
@@ -138,6 +140,7 @@ private:
     void draw_library(retro3do_t* emu, UiIntent& intent);
     void draw_settings(retro3do_t* emu, bool touch_visible, bool touch_editing,
                        UiIntent& intent);
+    void draw_pad_editor(TouchPad& touch, UiIntent& intent);
     void draw_artwork(UiIntent& intent);
     void draw_downloads(UiIntent& intent);
     void draw_system(retro3do_t* emu, UiIntent& intent);

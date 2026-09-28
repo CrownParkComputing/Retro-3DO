@@ -231,7 +231,9 @@ bool App::init() {
         last_error_ = "Could not create the emulated machine";
         return false;
     }
-    touch_ = std::make_unique<TouchPad>();
+    touch_ = std::make_unique<TouchPad>([this](retro3do_pad_button button, bool down) {
+        retro3do_pad_press(emu_, 0, button, down);
+    });
 
     ui_ = std::make_unique<Ui>();
     if (!ui_->init(window_, renderer_)) {
@@ -261,7 +263,7 @@ bool App::init() {
         // constructor's placeholder.
         int window_w = 0;
         int window_h = 0;
-        SDL_GetRenderOutputSize(renderer_, &window_w, &window_h);
+        SDL_GetWindowSize(window_, &window_w, &window_h);
         touch_->reset_layout(window_w, window_h);
     }
     load_settings();
@@ -414,11 +416,11 @@ void App::handle_events() {
         // Touch controls get first refusal, but only when the UI is not using
         // the pointer: otherwise a tap on a menu would also press a button
         // hiding underneath it.
-        if (renderer_ != nullptr && !ui_->wants_mouse()) {
+        if (renderer_ != nullptr) {
             int window_w = 0;
             int window_h = 0;
-            SDL_GetRenderOutputSize(renderer_, &window_w, &window_h);
-            if (touch_->handle_event(event, window_w, window_h, emu_)) {
+            SDL_GetWindowSize(window_, &window_w, &window_h);
+            if (touch_->handle_event(event, window_w, window_h, !ui_->wants_mouse())) {
                 continue;
             }
         }
@@ -1207,6 +1209,7 @@ void App::tick() {
     if (backgrounded_.load(std::memory_order_acquire) ||
         (resume_after != 0 && SDL_GetTicks() < resume_after)) {
         if (!lifecycle_pause_applied_) {
+            touch_->release_all();
             retro3do_set_paused(emu_, true);
             lifecycle_pause_applied_ = true;
         }
@@ -1298,8 +1301,7 @@ void App::tick() {
     retro3do_get_stats(emu_, &emu);
     const UiIntent intent =
         ui_->build(emu_, emulating_, smoothed_fps, emu.emulated_fps,
-                   emu.frame_ms, emu.audio_underruns, touch_->enabled(),
-                   touch_->editing());
+                   emu.frame_ms, emu.audio_underruns, *touch_);
 
     if (intent.bios_folder_chosen) {
         use_bios_folder(intent.folder_name, intent.folder_path);
@@ -1450,13 +1452,14 @@ void App::tick() {
     if (intent.reset_touch_layout) {
         int window_w = 0;
         int window_h = 0;
-        SDL_GetRenderOutputSize(renderer_, &window_w, &window_h);
+        SDL_GetWindowSize(window_, &window_w, &window_h);
         touch_->reset_layout(window_w, window_h);
         save_settings();
     }
     if (intent.ui_settings_changed) {
         save_settings();
     }
+    if (intent.touch_layout_changed) save_settings();
     if (intent.quit) {
         running_ = false;
     }
@@ -1466,8 +1469,8 @@ void App::tick() {
     SDL_SetRenderDrawColor(renderer_, 8, 8, 10, 255);
     SDL_RenderClear(renderer_);
 
-    // The picture and the pad are both placed in framebuffer pixels, so the
-    // renderer has to be at 1:1 while they are drawn.
+    // The picture is placed in framebuffer pixels, so draw it at 1:1.
+    // The touch pad is part of ImGui and uses window points like the menus.
     //
     // The UI sets the window target's render scale to the display's pixel
     // density, which is what lets ImGui lay out in points on a Retina panel.
@@ -1485,17 +1488,6 @@ void App::tick() {
     SDL_SetRenderScale(renderer_, 1.0f, 1.0f);
 
     present();
-
-    // Over the picture, under the menus: the controls belong to the game, not
-    // to the launcher.
-    {
-        int window_w = 0;
-        int window_h = 0;
-        SDL_GetRenderOutputSize(renderer_, &window_w, &window_h);
-        if (emulating_ || touch_->editing()) {
-            touch_->draw(renderer_, window_w, window_h);
-        }
-    }
 
     SDL_SetRenderScale(renderer_, previous_scale_x, previous_scale_y);
 

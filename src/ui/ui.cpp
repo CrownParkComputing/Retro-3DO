@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "ui/touch_pad.h"
 
 #include <SDL3/SDL.h>
 
@@ -596,7 +597,7 @@ void Ui::apply_safe_area() {
 
 UiIntent Ui::build(retro3do_t* emu, bool emulating, double display_fps,
                    double emulated_fps, double frame_ms, u64 underruns,
-                   bool touch_visible, bool touch_editing) {
+                   TouchPad& touch) {
     UiIntent intent;
     if (!initialised_) return intent;
 
@@ -606,7 +607,9 @@ UiIntent Ui::build(retro3do_t* emu, bool emulating, double display_fps,
     ImGui::NewFrame();
     apply_safe_area();
     update_touch_scroll();
-
+    const bool touch_visible = touch.enabled();
+    const bool touch_editing = touch.editing();
+    bool touch_active = false;
 
     if (!splash_complete_) {
         draw_splash();
@@ -618,6 +621,9 @@ UiIntent Ui::build(retro3do_t* emu, bool emulating, double display_fps,
         menu_requested_ = false;
         poll_setup_picker(intent);
         draw_setup_wizard(emu, intent);
+    } else if (touch_editing) {
+        draw_pad_editor(touch, intent);
+        touch_active = true;
     } else if (show_launcher_) {
         menu_requested_ = false;
         draw_launcher(emu, emulating, touch_visible, touch_editing, intent);
@@ -633,14 +639,47 @@ UiIntent Ui::build(retro3do_t* emu, bool emulating, double display_fps,
         }
         draw_overlay(emu, emulating, display_fps, emulated_fps, frame_ms,
                      underruns, touch_visible, touch_editing, intent);
+        touch_active = emulating && !quick_menu_ && !intent.toggle_pause;
+        if (touch_active) {
+            const auto* viewport = ImGui::GetMainViewport();
+            touch.draw(viewport->WorkPos, viewport->WorkSize);
+        }
         if (quick_menu_) {
             draw_quick_menu(emu, emulating, touch_visible, touch_editing,
                             intent);
         }
     }
 
+    touch.set_active(touch_active);
     ImGui::Render();
     return intent;
+}
+
+void Ui::draw_pad_editor(TouchPad& touch, UiIntent& intent) {
+    const auto* viewport = ImGui::GetMainViewport();
+    auto* draw = ImGui::GetBackgroundDrawList();
+    draw->AddRectFilled(viewport->Pos,
+                        ImVec2(viewport->Pos.x + viewport->Size.x,
+                               viewport->Pos.y + viewport->Size.y),
+                        IM_COL32(8, 12, 20, 245));
+    touch.draw(viewport->WorkPos, viewport->WorkSize);
+
+    ImGui::SetNextWindowPos(
+        ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f,
+               viewport->WorkPos.y + 8.0f * scale_), ImGuiCond_Always, ImVec2(0.5f, 0));
+    ImGui::Begin("##pad_editor_toolbar", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                 ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings);
+    ImGui::TextUnformatted("Drag controls to move them. Tap to customise.");
+    if (ImGui::Button("DONE")) intent.toggle_layout_edit = true;
+    ImGui::SameLine();
+    if (ImGui::Button("RESET LAYOUT")) intent.reset_touch_layout = true;
+    ImGui::End();
+
+    if (menu_requested_ && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId))
+        intent.toggle_layout_edit = true;
+    intent.touch_layout_changed = touch.draw_designer(menu_requested_);
+    menu_requested_ = false;
 }
 
 void Ui::draw_splash() {

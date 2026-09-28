@@ -29,8 +29,8 @@ android {
         minSdk 24
         targetSdk 36
         // Increment for each Play upload; version codes cannot be reused.
-        versionCode 15
-        versionName "2.1.1"
+        versionCode 16
+        versionName "2.1.2"
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_PLATFORM=android-24", "-DANDROID_STL=c++_static"

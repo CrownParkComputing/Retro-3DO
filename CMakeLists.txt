@@ -135,7 +135,6 @@ target_link_libraries(imgui PUBLIC ${RETRO3DO_SDL_TARGET})
 # ---------------------------------------------------------------------------
 set(RETRO3DO_APP_SOURCES
     src/main.cpp
-    src/app/pad_layout.cpp
     src/app/path.cpp
     src/app/settings.cpp
     src/platform/app.cpp
@@ -143,6 +142,7 @@ set(RETRO3DO_APP_SOURCES
     src/ui/game_library.cpp
     src/ui/file_browser.cpp
     src/ui/touch_pad.cpp
+    src/ui/retro_touch_pad.cpp
     src/platform/storage.cpp
     src/platform/android_storage.cpp
 )
@@ -299,4 +299,12 @@ if(RETRO3DO_BUILD_TESTS AND NOT IOS)
     target_link_libraries(retro3do_tests PRIVATE Threads::Threads)
     target_include_directories(retro3do_tests PRIVATE src tests)
     add_test(NAME retro3do_tests COMMAND retro3do_tests)
+
+    add_executable(retro3do_touch_tests
+        tests/test_main.cpp tests/test_touch_pad.cpp
+        src/ui/touch_pad.cpp src/ui/retro_touch_pad.cpp
+        src/app/settings.cpp)
+    target_include_directories(retro3do_touch_tests PRIVATE src tests)
+    target_link_libraries(retro3do_touch_tests PRIVATE retro3do_core imgui)
+    add_test(NAME retro3do_touch_tests COMMAND retro3do_touch_tests)
 endif()

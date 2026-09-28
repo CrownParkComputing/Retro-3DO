@@ -1,305 +1,176 @@
 #include "touch_pad.h"
 
-#include <SDL3/SDL.h>
+#include <algorithm>
+#include <filesystem>
+#include <utility>
 
-#include <cmath>
-#include <cstdio>
-
-#include "app/pad_layout.h"
 #include "app/settings.h"
 #include "platform/platform.h"
 
 namespace retro3do {
 namespace {
+struct Action { const char* id; retro3do_pad_button button; };
+constexpr Action actions[] = {
+    {"dir:up", RETRO3DO_PAD_UP}, {"dir:down", RETRO3DO_PAD_DOWN},
+    {"dir:left", RETRO3DO_PAD_LEFT}, {"dir:right", RETRO3DO_PAD_RIGHT},
+    {"a", RETRO3DO_PAD_A}, {"b", RETRO3DO_PAD_B}, {"c", RETRO3DO_PAD_C},
+    {"play", RETRO3DO_PAD_PLAY}, {"stop", RETRO3DO_PAD_STOP},
+    {"lshift", RETRO3DO_PAD_LEFT_SHIFT}, {"rshift", RETRO3DO_PAD_RIGHT_SHIFT},
+};
 
-const char* key_for(retro3do_pad_button button) {
-    switch (button) {
-        case RETRO3DO_PAD_UP:         return "up";
-        case RETRO3DO_PAD_DOWN:       return "down";
-        case RETRO3DO_PAD_LEFT:       return "left";
-        case RETRO3DO_PAD_RIGHT:      return "right";
-        case RETRO3DO_PAD_A:          return "a";
-        case RETRO3DO_PAD_B:          return "b";
-        case RETRO3DO_PAD_C:          return "c";
-        case RETRO3DO_PAD_PLAY:       return "play";
-        case RETRO3DO_PAD_STOP:       return "stop";
-        case RETRO3DO_PAD_LEFT_SHIFT:  return "lshift";
-        case RETRO3DO_PAD_RIGHT_SHIFT: return "rshift";
-        default:                    return "unknown";
+bool is_imported_legacy_layout(const touchpad::Layout& layout) {
+    if (layout.profile != "3do" || layout.extras.size() != std::size(actions)) return false;
+    for (const auto& cluster : layout.clusters)
+        if (cluster.second.visible) return false;
+    for (const auto& action : actions) {
+        const auto count = std::count_if(layout.extras.begin(), layout.extras.end(),
+            [&](const touchpad::Extra& extra) {
+                if (extra.id != action.id) return false;
+                // These labels only came from the old SDL pad. Shared-pad
+                // extras use PLAY/STOP, so a user-designed layout is distinct.
+                if (extra.id == "play") return extra.label == "P";
+                if (extra.id == "stop") return extra.label == "X";
+                return true;
+            });
+        if (count != 1) return false;
     }
+    return true;
+}
 }
 
-// The d-pad arrows are drawn rather than lettered, so they read at a glance.
-void draw_arrow(SDL_Renderer* renderer, retro3do_pad_button button, float cx, float cy,
-                float r) {
-    const float a = r * 0.45f;
-    SDL_FPoint p[4];
-    switch (button) {
-        case RETRO3DO_PAD_UP:
-            p[0] = {cx, cy - a}; p[1] = {cx - a, cy + a * 0.6f};
-            p[2] = {cx + a, cy + a * 0.6f}; p[3] = p[0];
-            break;
-        case RETRO3DO_PAD_DOWN:
-            p[0] = {cx, cy + a}; p[1] = {cx - a, cy - a * 0.6f};
-            p[2] = {cx + a, cy - a * 0.6f}; p[3] = p[0];
-            break;
-        case RETRO3DO_PAD_LEFT:
-            p[0] = {cx - a, cy}; p[1] = {cx + a * 0.6f, cy - a};
-            p[2] = {cx + a * 0.6f, cy + a}; p[3] = p[0];
-            break;
-        case RETRO3DO_PAD_RIGHT:
-            p[0] = {cx + a, cy}; p[1] = {cx - a * 0.6f, cy - a};
-            p[2] = {cx - a * 0.6f, cy + a}; p[3] = p[0];
-            break;
-        default:
-            return;
-    }
-    SDL_RenderLines(renderer, p, 4);
+TouchPad::TouchPad(Press press) : press_(std::move(press)) {
+    visible_ = RETRO3DO_MOBILE;
+    sink_.action = [this](const std::string& id, bool down) {
+        if (!press_) return;
+        for (const auto& action : actions)
+            if (id == action.id) { press_(action.button, down); return; }
+    };
+    sink_.directions = [this](bool up, bool down, bool left, bool right) {
+        const bool next[] = {up, down, left, right};
+        for (int i = 0; i < 4; ++i) {
+            if (next[i] == directions_[i]) continue;
+            directions_[i] = next[i];
+            if (press_) press_(actions[i].button, next[i]);
+        }
+    };
+    reset_layout(width_, height_);
 }
 
-void draw_circle(SDL_Renderer* renderer, float cx, float cy, float r) {
-    constexpr int kSegments = 28;
-    SDL_FPoint points[kSegments + 1];
-    for (int i = 0; i <= kSegments; ++i) {
-        const float angle =
-            static_cast<float>(i) / kSegments * 6.2831853f;
-        points[i] = {cx + std::cos(angle) * r, cy + std::sin(angle) * r};
-    }
-    SDL_RenderLines(renderer, points, kSegments + 1);
-}
+void TouchPad::release_all() { overlay_.release_all(sink_); }
 
-}  // namespace
-
-TouchPad::TouchPad() : controls_(default_touch_layout(1280, 720)) {
-    // Default on where there is no alternative, off where there is.
-#if RETRO3DO_MOBILE
-    visible_ = true;
-#else
-    visible_ = false;
-#endif
+void TouchPad::set_visible(bool visible) {
+    if (!visible) { release_all(); set_editing(false); }
+    visible_ = visible;
 }
 
 void TouchPad::set_physical_gamepad_present(bool present) {
+    if (present) { release_all(); set_editing(false); }
     gamepad_present_ = present;
-    if (present) {
-        // Editing controls which have just disappeared is both confusing and
-        // dangerous: an old drag would otherwise be resumed if the controller
-        // were unplugged later.
-        editing_ = false;
-        active_.clear();
-    }
 }
 
-void TouchPad::reset_layout(int window_width, int window_height) {
-    controls_ = default_touch_layout(window_width, window_height);
+void TouchPad::set_active(bool active) {
+    if (!active && active_) release_all();
+    active_ = active;
+}
+
+void TouchPad::set_editing(bool editing) {
+    if (editing == overlay_.editing()) return;
+    release_all();
+    overlay_.set_editing(editing);
+}
+
+void TouchPad::reset_layout(int width, int height) {
+    width_ = std::max(1, width); height_ = std::max(1, height);
+    area_pos_ = ImVec2(0, 0);
+    area_size_ = ImVec2(float(width_), float(height_));
+    release_all();
+    const auto& profile = touchpad::profile_3do();
+    auto layout = touchpad::Layout::defaults(profile);
+    const float scale = std::clamp(std::min(width_, height_) / 720.0f, 0.5f, 3.0f);
+    for (auto& cluster : layout.clusters) cluster.second.scale = scale;
+    overlay_.set(&profile, layout);
 }
 
 void TouchPad::load_layout(const Settings& settings) {
-    for (TouchControl& control : controls_) {
-        const std::string prefix = std::string("touch.") + key_for(control.button);
-        const std::string x = settings.get(prefix + ".x");
-        const std::string y = settings.get(prefix + ".y");
-        const std::string r = settings.get(prefix + ".r");
-
-        // Only accept a stored value that is inside the screen. A layout file
-        // from a different build, or a half-written one, must not put a control
-        // somewhere it can never be pressed and cannot be dragged back.
-        if (!x.empty() && !y.empty()) {
-            const float px = std::strtof(x.c_str(), nullptr);
-            const float py = std::strtof(y.c_str(), nullptr);
-            if (px >= 0.0f && px <= 1.0f && py >= 0.0f && py <= 1.0f) {
-                control.x = px;
-                control.y = py;
-            }
-        }
-        if (!r.empty()) {
-            const float pr = std::strtof(r.c_str(), nullptr);
-            if (pr > 0.01f && pr < 0.3f) {
-                control.radius = pr;
-            }
+    layout_dir_ = std::filesystem::path(settings.path()).parent_path().string();
+    if (layout_dir_.empty()) layout_dir_ = ".";
+    const auto& profile = touchpad::profile_3do();
+    release_all();
+    const std::filesystem::path path = touchpad::Layout::file_for(layout_dir_, profile);
+    reset_layout(width_, height_);
+    if (std::filesystem::exists(path)) {
+        auto layout = touchpad::Layout::load(layout_dir_, profile);
+        if (is_imported_legacy_layout(layout)) {
+            // The first shared-pad build hid every group and recreated all
+            // eleven old controls as extras. In the editor both sets appeared.
+            // Only repair that signature; genuinely edited shared pads survive.
+            std::error_code error;
+            std::filesystem::copy_file(path, path.string() + ".legacy",
+                                      std::filesystem::copy_options::skip_existing, error);
+            if (error) SDL_Log("Could not back up the old touch layout: %s", error.message().c_str());
+            if (!overlay_.layout().save(layout_dir_))
+                SDL_Log("Could not save the replacement 3DO controller layout");
+        } else {
+            overlay_.set(&profile, layout);
         }
     }
-    visible_ = settings.get_bool(settings_key::kTouchControls, visible_);
+    set_visible(settings.get_bool(settings_key::kTouchControls, visible_));
 }
 
 void TouchPad::save_layout(Settings& settings) const {
-    for (const TouchControl& control : controls_) {
-        const std::string prefix = std::string("touch.") + key_for(control.button);
-        char buffer[32];
-        std::snprintf(buffer, sizeof(buffer), "%.4f", control.x);
-        settings.set(prefix + ".x", buffer);
-        std::snprintf(buffer, sizeof(buffer), "%.4f", control.y);
-        settings.set(prefix + ".y", buffer);
-        std::snprintf(buffer, sizeof(buffer), "%.4f", control.radius);
-        settings.set(prefix + ".r", buffer);
-    }
     settings.set_bool(settings_key::kTouchControls, visible_);
+    if (!layout_dir_.empty() && !overlay_.layout().save(layout_dir_))
+        SDL_Log("Could not save the touch controller layout in %s", layout_dir_.c_str());
 }
 
-float TouchPad::radius_pixels(const TouchControl& control, int w, int h) const {
-    // Sized against the smaller dimension so a control is the same physical
-    // size whichever way the device is held.
-    const float smaller = static_cast<float>(w < h ? w : h);
-    return control.radius * smaller;
-}
-
-int TouchPad::control_at(float px, float py, int w, int h) const {
-    // Last drawn is topmost, so search backwards and the control a user sees on
-    // top is the one they get.
-    for (int i = static_cast<int>(controls_.size()) - 1; i >= 0; --i) {
-        const TouchControl& control = controls_[static_cast<size_t>(i)];
-        const float cx = control.x * static_cast<float>(w);
-        const float cy = control.y * static_cast<float>(h);
-        const float r = radius_pixels(control, w, h);
-
-        const float dx = px - cx;
-        const float dy = py - cy;
-        // A generous hit area: fingers are imprecise, and a button that needs
-        // to be hit exactly feels broken rather than demanding.
-        const float reach = r * 1.15f;
-        if (dx * dx + dy * dy <= reach * reach) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-bool TouchPad::handle_event(const SDL_Event& event, int w, int h, retro3do_t* emu) {
-    if (!visible() || w <= 0 || h <= 0) {
+bool TouchPad::handle_event(const SDL_Event& event, int width, int height,
+                            bool pointer_available) {
+    if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST ||
+        event.type == SDL_EVENT_WILL_ENTER_BACKGROUND) {
+        release_all();
         return false;
     }
-
-    // SDL reports touches in normalised coordinates and the mouse in pixels, so
-    // they are converted to a common frame before anything else.
-    float px = 0.0f;
-    float py = 0.0f;
-    s64 finger = 0;
-    bool down = false;
-    bool up = false;
-    bool motion = false;
-
-    switch (event.type) {
-        case SDL_EVENT_FINGER_DOWN:
-        case SDL_EVENT_FINGER_UP:
-        case SDL_EVENT_FINGER_MOTION:
-            px = event.tfinger.x * static_cast<float>(w);
-            py = event.tfinger.y * static_cast<float>(h);
-            finger = static_cast<s64>(event.tfinger.fingerID);
-            down = event.type == SDL_EVENT_FINGER_DOWN;
-            up = event.type == SDL_EVENT_FINGER_UP;
-            motion = event.type == SDL_EVENT_FINGER_MOTION;
-            break;
-
-        case SDL_EVENT_MOUSE_BUTTON_DOWN:
-        case SDL_EVENT_MOUSE_BUTTON_UP:
-            // A mouse is treated as one more finger, with an id no real touch
-            // uses. It makes the controls testable on a desktop.
-            px = event.button.x;
-            py = event.button.y;
-            finger = -1;
-            down = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
-            up = event.type == SDL_EVENT_MOUSE_BUTTON_UP;
-            break;
-
-        case SDL_EVENT_MOUSE_MOTION:
-            px = event.motion.x;
-            py = event.motion.y;
-            finger = -1;
-            motion = true;
-            break;
-
-        default:
-            return false;
-    }
-
-    if (down) {
-        const int index = control_at(px, py, w, h);
-        if (index < 0) {
-            return false;
-        }
-        active_.push_back(ActiveTouch{finger, index});
-        if (!editing_) {
-            retro3do_pad_press(emu, 0, controls_[static_cast<size_t>(index)].button, 1);
-        }
-        return true;
-    }
-
-    if (motion) {
-        if (!editing_) {
-            return false;
-        }
-        for (const ActiveTouch& touch : active_) {
-            if (touch.finger_id != finger || touch.control_index < 0) continue;
-            TouchControl& control = controls_[static_cast<size_t>(touch.control_index)];
-            // Clamped so a control can never be dragged off the screen and
-            // become impossible to reach again.
-            control.x = std::fmin(1.0f, std::fmax(0.0f, px / static_cast<float>(w)));
-            control.y = std::fmin(1.0f, std::fmax(0.0f, py / static_cast<float>(h)));
-            return true;
-        }
+    if ((!visible() && !editing()) || !active_ || width <= 0 || height <= 0)
         return false;
-    }
-
-    if (up) {
-        for (size_t i = 0; i < active_.size(); ++i) {
-            if (active_[i].finger_id != finger) continue;
-            const int index = active_[i].control_index;
-            if (index >= 0 && !editing_) {
-                retro3do_pad_press(emu, 0, controls_[static_cast<size_t>(index)].button, 0);
-            }
-            active_.erase(active_.begin() + static_cast<long>(i));
-            return index >= 0;
-        }
-    }
-
-    return false;
+    // A release must still reach an existing touch when a menu captures the
+    // pointer. Starting a gesture over a widget must never press the pad.
+    if (!pointer_available && event.type != SDL_EVENT_FINGER_UP &&
+        event.type != SDL_EVENT_FINGER_CANCELED && event.type != SDL_EVENT_MOUSE_BUTTON_UP)
+        return false;
+    return overlay_.handle(event, ImVec2(float(width), float(height)),
+                            area_pos_, area_size_, sink_);
 }
 
-void TouchPad::draw(SDL_Renderer* renderer, int w, int h) const {
-    if (!visible() || w <= 0 || h <= 0) {
-        return;
-    }
-
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-
-    for (size_t i = 0; i < controls_.size(); ++i) {
-        const TouchControl& control = controls_[i];
-        const float cx = control.x * static_cast<float>(w);
-        const float cy = control.y * static_cast<float>(h);
-        const float r = radius_pixels(control, w, h);
-
-        bool held = false;
-        for (const ActiveTouch& touch : active_) {
-            if (touch.control_index == static_cast<int>(i)) {
-                held = true;
-                break;
-            }
-        }
-
-        // Faint by default: the controls have to be visible enough to aim at
-        // and quiet enough not to fight the picture. They brighten when held,
-        // which is the only feedback a glass button can give.
-        if (editing_) {
-            SDL_SetRenderDrawColor(renderer, 255, 200, 90, 200);
-        } else if (held) {
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 190);
-        } else {
-            SDL_SetRenderDrawColor(renderer, 235, 235, 245, 90);
-        }
-
-        draw_circle(renderer, cx, cy, r);
-        draw_circle(renderer, cx, cy, r * 0.94f);
-
-        if (!control.label.empty()) {
-            SDL_SetRenderScale(renderer, r * 0.09f, r * 0.09f);
-            SDL_RenderDebugText(renderer, (cx - r * 0.16f) / (r * 0.09f),
-                                (cy - r * 0.28f) / (r * 0.09f),
-                                control.label.c_str());
-            SDL_SetRenderScale(renderer, 1.0f, 1.0f);
-        } else {
-            draw_arrow(renderer, control.button, cx, cy, r);
-        }
-    }
+void TouchPad::draw(const ImVec2& pos, const ImVec2& size) {
+    area_pos_ = pos; area_size_ = size;
+    if (size.x <= 0 || size.y <= 0 || (!visible() && !editing())) return;
+    overlay_.draw(ImGui::GetBackgroundDrawList(), pos, size);
 }
 
+bool TouchPad::draw_designer(bool close_popup) {
+    bool changed = false;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f,
+                                  viewport->WorkPos.y + viewport->WorkSize.y * 0.5f),
+                            ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    if (overlay_.has_selection() && !ImGui::IsMouseDown(ImGuiMouseButton_Left) &&
+        !ImGui::IsPopupOpen("Pad settings"))
+        ImGui::OpenPopup("Pad settings");
+    if (ImGui::BeginPopupModal("Pad settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        changed |= overlay_.designer_controls(&sink_);
+        if (overlay_.has_selection()) {
+            ImGui::Separator();
+            changed |= overlay_.cluster_panel();
+        } else if (ImGui::Button("Done")) {
+            ImGui::CloseCurrentPopup();
+        }
+        if (close_popup || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            overlay_.clear_selection();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    const bool dragged = overlay_.take_dirty();
+    return changed || dragged;
+}
 }  // namespace retro3do
