@@ -77,3 +77,10 @@
     void hapticRumble(int, float, float, int);
     void hapticStop(int);
 }
+
+# android_storage.cpp reaches these purely by name via GetStaticMethodID, with
+# no Java-side caller, so R8 has no call-graph edge telling it they are used
+# and will strip or rename them without this rule.
+-keep,includedescriptorclasses,allowoptimization class com.crownparkcomputing.retro3do.Retro3DOActivity {
+    public static *** native*(...);
+}

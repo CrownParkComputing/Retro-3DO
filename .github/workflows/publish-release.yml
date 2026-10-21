@@ -1,0 +1,113 @@
+name: Publish Play Store release
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Play Console track to publish to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - internal
+          - alpha
+          - beta
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+concurrency:
+  group: retro3do-play-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout replacement emulator
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Initialize native submodules
+        run: git submodule update --init --recursive
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
+
+      - name: Apply Retro-3DO SDL Vulkan fixes
+        run: git -C third_party/SDL apply ../../patches/sdl-vulkan-android.patch
+
+      - name: Check signing and publishing secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          missing=0
+          for secret_name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD PLAY_SERVICE_ACCOUNT_JSON; do
+            if [ -z "${!secret_name}" ]; then
+              echo "::error::Missing required GitHub secret: ${secret_name}"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Decode signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PATH: ${{ runner.temp }}/retro3do-upload.keystore
+        run: |
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+
+      - name: Build signed release AAB
+        working-directory: android
+        run: ./gradlew --no-daemon bundleRelease
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/retro3do-upload.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Remove plaintext keystore
+        if: always()
+        run: rm -f "${{ runner.temp }}/retro3do-upload.keystore"
+
+      - name: Authenticate to Google Play API
+        id: google_auth
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/google-service-account-token.mjs
+
+      - name: Publish bundle to Play Console
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.google_auth.outputs.access_token }}
+          BUNDLE_PATH: android/app/build/outputs/bundle/release/app-release.aab
+          TRACK: ${{ inputs.track }}
+        run: bash scripts/publish-release.sh
+
+      - name: Upload signed AAB artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retro-3do-signed-play-store-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 14
