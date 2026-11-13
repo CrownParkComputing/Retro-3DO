@@ -62,7 +62,6 @@ constexpr const char* kRendererBackend = "video.renderer";
 constexpr const char* kAspectWidescreen = "video.aspect_widescreen";
 constexpr const char* kBezel = "video.bezel";
 constexpr const char* kCrtEffect = "video.crt_effect";
-constexpr const char* kRetroMediaCardType = "media.retromedia.card_type";
 constexpr const char* kGpuDriverName = "video.gpu_driver.name";
 constexpr const char* kGpuDriverDirectory = "video.gpu_driver.directory";
 constexpr const char* kGpuDriverLibrary = "video.gpu_driver.library";

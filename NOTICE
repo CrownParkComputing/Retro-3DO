@@ -13,10 +13,10 @@ ImGui (MIT), libchdr (BSD-3-Clause), AdrenoTools (BSD-2-Clause), miniz (MIT),
 the LZMA SDK (public domain) and zstd (BSD selected). Portions informed by
 MAME carry the BSD-3-Clause notices recorded in docs/THIRD_PARTY.md.
 
-No commercial or third-party 3DO BIOS, game image, or RetroMedia catalogue
-content is included under the Retro-3DO software licence. The application does
-include the small project-owned demonstration boot ROM whose complete source is
-in demo/. Users and distributors are responsible for having the rights to any
+No commercial or third-party 3DO BIOS or game image content is included under
+the Retro-3DO software licence. The application does include the small
+project-owned demonstration boot ROM whose complete source is in demo/. Users
+and distributors are responsible for having the rights to any
 other BIOS, games, artwork and custom GPU drivers they supply.
 
 Historical reference-source exposure is documented in docs/PROVENANCE.md.

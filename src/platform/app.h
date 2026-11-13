@@ -80,7 +80,6 @@ private:
     void save_settings();
     void load_library();
     void save_library();
-    void load_retro_media_artwork();
     void remember_game(const std::string& name, const std::string& target);
     void use_bios_folder(const std::string& name, const std::string& target);
     void scan_games_folder(const std::string& name, const std::string& target);

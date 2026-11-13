@@ -278,66 +278,6 @@ void Ui::set_gpu_driver_status(const std::string& name,
     gpu_driver_message_ = message;
 }
 
-void Ui::configure_retro_media(const std::string& media_type) {
-    static constexpr const char* kTypes[] = {
-        "box2d", "images", "thumbnails", "titles"
-    };
-    retro_media_type_ = "box2d";
-    for (const char* type : kTypes) {
-        if (media_type == type) retro_media_type_ = type;
-    }
-}
-
-void Ui::set_retro_media_status(const std::string& email, int credits,
-                                int free_remaining, bool is_admin, bool busy,
-                                const std::string& message) {
-    retro_media_email_ = email;
-    retro_media_credits_ = credits;
-    retro_media_free_remaining_ = free_remaining;
-    retro_media_admin_ = is_admin;
-    if (!is_admin && page_ == Page::Downloads) page_ = Page::Artwork;
-    retro_media_busy_ = busy;
-    retro_media_message_ = message;
-    if (!email.empty()) {
-        std::snprintf(retro_media_email_buffer_,
-                      sizeof(retro_media_email_buffer_), "%s", email.c_str());
-    }
-    if (!busy) {
-        // The password is only needed to make the server session. Do not keep
-        // it in the UI buffer after that attempt succeeds or fails.
-        std::memset(retro_media_password_buffer_, 0,
-                    sizeof(retro_media_password_buffer_));
-    }
-}
-
-void Ui::set_retro_media_catalogue(
-    const std::vector<RetroMediaGame>& games) {
-    retro_media_catalogue_.clear();
-    retro_media_catalogue_.reserve(games.size());
-    for (const RetroMediaGame& game : games) {
-        retro_media_catalogue_.push_back(
-            {game.slug, game.name, game.rom_files, game.total_bytes});
-    }
-}
-
-void Ui::set_retro_media_error(const std::string& message) {
-    retro_media_busy_ = false;
-    retro_media_message_ = message;
-    std::memset(retro_media_password_buffer_, 0,
-                sizeof(retro_media_password_buffer_));
-}
-
-void Ui::set_retro_media_email_hint(const std::string& email) {
-    if (email.empty() || retro_media_email_buffer_[0] != '\0') return;
-    std::snprintf(retro_media_email_buffer_, sizeof(retro_media_email_buffer_),
-                  "%s", email.c_str());
-}
-
-void Ui::clear_artwork_textures() {
-    release_artwork_textures();
-    artwork_.clear();
-}
-
 void Ui::load_splash_texture() {
     if (renderer_ == nullptr || splash_texture_ != nullptr) return;
     SDL_Surface* surface = SDL_LoadBMP("retro3do-splash.bmp");
@@ -351,75 +291,6 @@ void Ui::load_splash_texture() {
         SDL_SetTextureScaleMode(splash_texture_, SDL_SCALEMODE_LINEAR);
         SDL_SetTextureBlendMode(splash_texture_, SDL_BLENDMODE_BLEND);
     }
-}
-
-void Ui::release_artwork_textures() {
-    for (auto& [name, item] : artwork_) {
-        (void)name;
-        if (item.texture != nullptr) SDL_DestroyTexture(item.texture);
-        item.texture = nullptr;
-        item.attempted = false;
-    }
-}
-
-void Ui::set_retro_media_artwork(
-    const std::vector<RetroMediaArtwork>& artwork) {
-    clear_artwork_textures();
-    for (const RetroMediaArtwork& item : artwork) {
-        if (item.key.empty() || item.path.empty() || item.width <= 0 ||
-            item.height <= 0) {
-            continue;
-        }
-        artwork_.emplace(item.key, ArtworkTexture{item.path, item.width,
-                                                  item.height, nullptr, false});
-    }
-}
-
-SDL_Texture* Ui::artwork_texture(const std::string& game_name) {
-    const auto found = artwork_.find(game_name);
-    if (found == artwork_.end()) return nullptr;
-    ArtworkTexture& item = found->second;
-    if (item.texture != nullptr || item.attempted || renderer_ == nullptr) {
-        return item.texture;
-    }
-    item.attempted = true;
-
-    size_t size = 0;
-    void* file = SDL_LoadFile(item.path.c_str(), &size);
-    if (file == nullptr || size < 12) {
-        if (file != nullptr) SDL_free(file);
-        return nullptr;
-    }
-    const u8* bytes = static_cast<const u8*>(file);
-    const auto big_endian_u32 = [](const u8* value) {
-        return (static_cast<u32>(value[0]) << 24u) |
-               (static_cast<u32>(value[1]) << 16u) |
-               (static_cast<u32>(value[2]) << 8u) |
-               static_cast<u32>(value[3]);
-    };
-    const u32 width = big_endian_u32(bytes + 4);
-    const u32 height = big_endian_u32(bytes + 8);
-    const size_t pixel_bytes = static_cast<size_t>(width) * height * 4u;
-    if (std::memcmp(bytes, "R3AR", 4) != 0 || width == 0 || height == 0 ||
-        width > 2048 || height > 2048 || pixel_bytes != size - 12u) {
-        SDL_free(file);
-        return nullptr;
-    }
-
-    item.texture = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA32,
-                                     SDL_TEXTUREACCESS_STATIC,
-                                     static_cast<int>(width),
-                                     static_cast<int>(height));
-    if (item.texture != nullptr) {
-        SDL_UpdateTexture(item.texture, nullptr, bytes + 12,
-                          static_cast<int>(width * 4u));
-        SDL_SetTextureScaleMode(item.texture, SDL_SCALEMODE_LINEAR);
-        SDL_SetTextureBlendMode(item.texture, SDL_BLENDMODE_BLEND);
-        item.width = static_cast<int>(width);
-        item.height = static_cast<int>(height);
-    }
-    SDL_free(file);
-    return item.texture;
 }
 
 void Ui::configure_setup(bool complete, const std::string& bios_folder_name,
@@ -440,7 +311,6 @@ void Ui::shutdown() {
         SDL_DestroyTexture(splash_texture_);
         splash_texture_ = nullptr;
     }
-    clear_artwork_textures();
     release_ui_texture();
     if (renderer_ != nullptr) ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
@@ -455,7 +325,6 @@ void Ui::suspend_renderer() {
         SDL_DestroyTexture(splash_texture_);
         splash_texture_ = nullptr;
     }
-    release_artwork_textures();
     release_ui_texture();
     ImGui_ImplSDLRenderer3_Shutdown();
     renderer_ = nullptr;
@@ -734,13 +603,12 @@ void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
                       ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar);
     ImGui::PushTextWrapPos(0.0f);
     ImGui::TextColored(kCyan, "RETRO-3DO SETUP");
-    const int step = wizard_step_ == WizardStep::Welcome    ? 1
-                   : wizard_step_ == WizardStep::Bios       ? 2
-                   : wizard_step_ == WizardStep::Games      ? 3
-                   : wizard_step_ == WizardStep::RetroMedia ? 4
-                                                             : 5;
+    const int step = wizard_step_ == WizardStep::Welcome ? 1
+                   : wizard_step_ == WizardStep::Bios    ? 2
+                   : wizard_step_ == WizardStep::Games   ? 3
+                                                          : 4;
     ImGui::SameLine();
-    ImGui::TextColored(kMuted, "STEP %d OF 5", step);
+    ImGui::TextColored(kMuted, "STEP %d OF 4", step);
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -834,52 +702,6 @@ void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
             }
             ImGui::BeginDisabled(games_folder_target_.empty());
             if (wide_button("CONTINUE", 42.0f * scale_)) {
-                wizard_step_ = WizardStep::RetroMedia;
-            }
-            ImGui::EndDisabled();
-            break;
-
-        case WizardStep::RetroMedia:
-            ImGui::SetWindowFontScale(1.45f);
-            ImGui::TextUnformatted("RETROMEDIA (OPTIONAL)");
-            ImGui::SetWindowFontScale(1.0f);
-            ImGui::TextWrapped(
-                "Sign in to download library artwork. Administrator accounts "
-                "also unlock the private game-download catalogue.");
-            ImGui::Spacing();
-            if (retro_media_email_.empty()) {
-                ImGui::SetNextItemWidth(-1.0f);
-                ImGui::InputTextWithHint("##wizard_rm_email", "Email",
-                                         retro_media_email_buffer_,
-                                         sizeof(retro_media_email_buffer_));
-                ImGui::SetNextItemWidth(-1.0f);
-                ImGui::InputTextWithHint("##wizard_rm_password", "Password",
-                                         retro_media_password_buffer_,
-                                         sizeof(retro_media_password_buffer_),
-                                         ImGuiInputTextFlags_Password);
-                ImGui::BeginDisabled(retro_media_busy_);
-                if (wide_button("SIGN IN", 42.0f * scale_)) {
-                    retro_media_busy_ = true;
-                    retro_media_message_ = "Signing in...";
-                    intent.retro_media_login = true;
-                    intent.retro_media_email = retro_media_email_buffer_;
-                    intent.retro_media_password = retro_media_password_buffer_;
-                }
-                ImGui::EndDisabled();
-            } else {
-                ImGui::TextColored(kGreen, "SIGNED IN: %s",
-                                   retro_media_email_.c_str());
-                ImGui::TextColored(retro_media_admin_ ? kAmber : kMuted, "%s",
-                    retro_media_admin_ ? "Administrator game catalogue unlocked"
-                                       : "Artwork account connected");
-            }
-            if (!retro_media_message_.empty()) {
-                ImGui::TextColored(retro_media_busy_ ? kAmber : kMuted, "%s",
-                                   retro_media_message_.c_str());
-            }
-            ImGui::BeginDisabled(retro_media_busy_);
-            if (wide_button(retro_media_email_.empty() ? "SKIP FOR NOW" : "CONTINUE",
-                            42.0f * scale_)) {
                 wizard_step_ = WizardStep::Finish;
             }
             ImGui::EndDisabled();
@@ -925,8 +747,7 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
     // a visible quit control is a known review rejection. The system gesture is
     // the way out of a handheld; on a desktop the button still is. It has to
     // come out of the count as well as the layout or the grid keeps its slot.
-    const int action_count = 6 + (RETRO3DO_PLATFORM_IOS ? 0 : 1) +
-                             (retro_media_admin_ ? 1 : 0) +
+    const int action_count = 5 + (RETRO3DO_PLATFORM_IOS ? 0 : 1) +
                              (session_available_ ? 1 : 0);
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const int nav_columns = std::max(1, std::min(action_count,
@@ -946,7 +767,6 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
             ImVec4 accent = kAmber;
             if (page == Page::Library) accent = kCyan;
             if (page == Page::Settings) accent = kViolet;
-            if (page == Page::Artwork) accent = kPink;
             if (page == Page::About) accent = kGreen;
             ImGui::PushStyleColor(ImGuiCol_Button, tinted(accent, 0.38f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
@@ -964,10 +784,6 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
         wake_menu_button();
     }
     nav_button("SETTINGS", Page::Settings);
-    nav_button("ARTWORK", Page::Artwork);
-    if (retro_media_admin_) {
-        nav_button("DOWNLOADS", Page::Downloads);
-    }
     nav_button("SYSTEM", Page::System);
     nav_button("ABOUT", Page::About);
     if (session_available_) {
@@ -998,8 +814,6 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
         case Page::Library:  draw_library(console, intent); break;
         case Page::Settings: draw_settings(console, touch_visible, touch_editing,
                                            intent); break;
-        case Page::Artwork:  draw_artwork(intent); break;
-        case Page::Downloads: draw_downloads(intent); break;
         case Page::System:   draw_system(console, intent); break;
         case Page::About:    draw_about(); break;
     }
@@ -1117,41 +931,24 @@ void Ui::draw_library(Console& console, UiIntent& intent) {
             const float content_left = card_top.x + padding;
             const float content_top = card_top.y + padding;
             const float art_height = 76.0f * scale_;
-            SDL_Texture* cover = artwork_texture(game.name);
-            if (cover != nullptr) {
-                const ArtworkTexture& item = artwork_.find(game.name)->second;
-                const float aspect = static_cast<float>(item.width) /
-                                     static_cast<float>(std::max(1, item.height));
-                const float art_width = std::clamp(art_height * aspect,
-                                                   62.0f * scale_,
-                                                   108.0f * scale_);
-                const float art_left =
-                    card_top.x + (card_width - art_width) * 0.5f;
-                draw->AddImage(
-                    ImTextureRef(static_cast<ImTextureID>(
-                        reinterpret_cast<intptr_t>(cover))),
-                    ImVec2(art_left, content_top),
-                    ImVec2(art_left + art_width, content_top + art_height));
-            } else {
-                const float tile_width = 76.0f * scale_;
-                const float tile_left =
-                    card_top.x + (card_width - tile_width) * 0.5f;
-                draw->AddRectFilled(
-                    ImVec2(tile_left, content_top),
-                    ImVec2(tile_left + tile_width, content_top + art_height),
-                    colour(tinted(accent, 0.16f)), 6.0f * scale_);
-                const char initial[2] = {card_initial(game.name), '\0'};
-                const float initial_size = ImGui::GetFontSize() * 1.7f;
-                const ImVec2 initial_bounds = ImGui::GetFont()->CalcTextSizeA(
-                    initial_size, FLT_MAX, 0.0f, initial);
-                draw->AddText(
-                    ImGui::GetFont(), initial_size,
-                    ImVec2(tile_left +
-                               (tile_width - initial_bounds.x) * 0.5f,
-                           content_top +
-                               (art_height - initial_bounds.y) * 0.5f),
-                    colour(accent), initial);
-            }
+            const float tile_width = 76.0f * scale_;
+            const float tile_left =
+                card_top.x + (card_width - tile_width) * 0.5f;
+            draw->AddRectFilled(
+                ImVec2(tile_left, content_top),
+                ImVec2(tile_left + tile_width, content_top + art_height),
+                colour(tinted(accent, 0.16f)), 6.0f * scale_);
+            const char initial[2] = {card_initial(game.name), '\0'};
+            const float initial_size = ImGui::GetFontSize() * 1.7f;
+            const ImVec2 initial_bounds = ImGui::GetFont()->CalcTextSizeA(
+                initial_size, FLT_MAX, 0.0f, initial);
+            draw->AddText(
+                ImGui::GetFont(), initial_size,
+                ImVec2(tile_left +
+                           (tile_width - initial_bounds.x) * 0.5f,
+                       content_top +
+                           (art_height - initial_bounds.y) * 0.5f),
+                colour(accent), initial);
 
             const float text_width = card_width - padding * 2.0f;
             draw_card_title(draw, game.name,
@@ -1279,202 +1076,6 @@ void Ui::draw_settings(Console& console, bool touch_visible, bool touch_editing,
     }
     end_panel();
     ImGui::PopStyleVar();
-}
-
-void Ui::draw_artwork(UiIntent& intent) {
-    page_heading("ARTWORK", "RetroMedia account and library card downloads");
-
-    const float gap = ImGui::GetStyle().ItemSpacing.x;
-    const float available_width = ImGui::GetContentRegionAvail().x;
-    const bool stacked = available_width < 700.0f * scale_;
-    const float column_width = stacked ? available_width : (available_width - gap) * 0.5f;
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                        ImVec2(10.0f * scale_, 10.0f * scale_));
-
-    begin_panel("##retromedia_account", column_width, stacked);
-    ImGui::TextColored(kViolet, "RETROMEDIA ACCOUNT");
-    ImGui::PushStyleColor(ImGuiCol_Text, kMuted);
-    ImGui::TextWrapped(
-        "Sign in with your registered account. Retro-3DO stores only the "
-        "encrypted session; passwords are never saved.");
-    ImGui::PopStyleColor();
-
-    if (!AndroidStorage::available()) {
-        ImGui::TextColored(kAmber,
-                           "Account downloads are available in the Android build.");
-    } else if (retro_media_email_.empty()) {
-        ImGui::SetNextItemWidth(-1.0f);
-        ImGui::InputTextWithHint("##rm_email", "Registered email",
-                                 retro_media_email_buffer_,
-                                 sizeof(retro_media_email_buffer_));
-        ImGui::SetNextItemWidth(-1.0f);
-        ImGui::InputTextWithHint("##rm_password", "Password",
-                                 retro_media_password_buffer_,
-                                 sizeof(retro_media_password_buffer_),
-                                 ImGuiInputTextFlags_Password);
-        ImGui::BeginDisabled(retro_media_busy_);
-        if (ImGui::Button("SIGN IN", ImVec2(-1.0f, 0.0f))) {
-            retro_media_busy_ = true;
-            retro_media_message_ = "Signing in...";
-            intent.retro_media_login = true;
-            intent.retro_media_email = retro_media_email_buffer_;
-            intent.retro_media_password = retro_media_password_buffer_;
-        }
-        ImGui::EndDisabled();
-    } else {
-        ImGui::TextColored(kGreen, "%s", retro_media_email_.c_str());
-        ImGui::Text("Daily downloads left: %d    Credits: %d",
-                    retro_media_free_remaining_, retro_media_credits_);
-        ImGui::BeginDisabled(retro_media_busy_);
-        if (ImGui::Button("SIGN OUT", ImVec2(-1.0f, 0.0f))) {
-            retro_media_busy_ = true;
-            retro_media_message_ = "Signing out...";
-            intent.retro_media_logout = true;
-        }
-        ImGui::EndDisabled();
-    }
-    end_panel();
-
-    if (!stacked) ImGui::SameLine();
-    begin_panel("##retromedia_downloads", column_width, stacked);
-    ImGui::TextColored(kCyan, "GAME CARD ARTWORK");
-    ImGui::TextColored(kMuted, "%zu game%s in this library",
-                       library_.games().size(),
-                       library_.games().size() == 1 ? "" : "s");
-    const char* type_ids[] = {"box2d", "images", "thumbnails", "titles"};
-    const char* type_names[] = {"2D COVER", "SCREENSHOT", "THUMBNAIL",
-                                "TITLE SCREEN"};
-    int selected_type = 0;
-    for (int i = 0; i < 4; ++i) {
-        if (retro_media_type_ == type_ids[i]) selected_type = i;
-    }
-    ImGui::TextColored(kMuted, "Choose what appears on every library card:");
-    for (int i = 0; i < 4; ++i) {
-        if (i == 1 || i == 3) same_line_if_fits(type_names[i]);
-        if (ImGui::RadioButton(type_names[i], &selected_type, i)) {
-            retro_media_type_ = type_ids[i];
-            intent.retro_media_artwork_changed = true;
-            intent.ui_settings_changed = true;
-        }
-    }
-    ImGui::PushStyleColor(ImGuiCol_Text, kMuted);
-    ImGui::TextWrapped(
-        "Only missing cards are downloaded. Daily allowance and credits apply.");
-    ImGui::PopStyleColor();
-    ImGui::BeginDisabled(retro_media_busy_ || retro_media_email_.empty() ||
-                         library_.games().empty());
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.07f, 0.40f, 0.42f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                          ImVec4(0.09f, 0.55f, 0.57f, 1.0f));
-    if (ImGui::Button("DOWNLOAD MISSING ARTWORK",
-                      ImVec2(-1.0f, 46.0f * scale_))) {
-        retro_media_busy_ = true;
-        retro_media_message_ = "Matching library and downloading artwork...";
-        intent.retro_media_sync = true;
-    }
-    ImGui::PopStyleColor(2);
-    ImGui::EndDisabled();
-    ImGui::TextColored(retro_media_busy_ ? kAmber : kMuted, "%s",
-                       retro_media_message_.c_str());
-    end_panel();
-    ImGui::PopStyleVar();
-}
-
-void Ui::draw_downloads(UiIntent& intent) {
-    page_heading("GAME DOWNLOADS", "Administrator RetroMedia catalogue");
-    if (!retro_media_admin_) {
-        ImGui::TextColored(kAmber,
-                           "This page requires a RetroMedia administrator account.");
-        return;
-    }
-    alphabet_filter(retro_media_group_, kAmber, scale_);
-
-    const bool narrow_search = ImGui::GetContentRegionAvail().x < 420.0f * scale_;
-    ImGui::SetNextItemWidth(narrow_search ? -1.0f :
-        ImGui::GetContentRegionAvail().x - 180.0f * scale_ - ImGui::GetStyle().ItemSpacing.x);
-    ImGui::InputTextWithHint("##rm_catalogue_search", "Search available games...",
-                             retro_media_search_buffer_,
-                             sizeof(retro_media_search_buffer_));
-    if (!narrow_search) ImGui::SameLine();
-    ImGui::BeginDisabled(retro_media_busy_);
-    if (ImGui::Button("BROWSE / REFRESH", ImVec2(-1.0f, 0.0f))) {
-        retro_media_busy_ = true;
-        retro_media_message_ = "Loading administrator catalogue...";
-        intent.retro_media_catalogue = true;
-        intent.retro_media_search = retro_media_search_buffer_;
-    }
-    ImGui::EndDisabled();
-    ImGui::Spacing();
-    ImGui::TextColored(retro_media_busy_ ? kAmber : kMuted, "%s",
-                       retro_media_message_.c_str());
-    ImGui::BeginChild("##rm_game_catalogue", ImVec2(0.0f, 0.0f),
-                      ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
-    if (retro_media_catalogue_.empty()) {
-        ImGui::TextWrapped(
-            "Choose Browse / Refresh to list ROM sets available to this "
-            "administrator. Downloads go to the selected Games folder.");
-    }
-    std::vector<const CatalogueItem*> shown;
-    for (const CatalogueItem& game : retro_media_catalogue_) {
-        char head = 0;
-        for (unsigned char c : game.name) {
-            if (std::isdigit(c)) { head = '#'; break; }
-            if (std::isalpha(c)) {
-                head = static_cast<char>(std::toupper(c));
-                break;
-            }
-        }
-        if (retro_media_group_ == 0 || head == retro_media_group_) {
-            shown.push_back(&game);
-        }
-    }
-    const float available = ImGui::GetContentRegionAvail().x;
-    const int columns = available >= 720.0f * scale_ ? 4
-                        : available >= 500.0f * scale_ ? 3
-                        : available >= 340.0f * scale_ ? 2 : 1;
-    const float gap = ImGui::GetStyle().ItemSpacing.x;
-    const float width = (available - gap * (columns - 1)) / columns;
-    float row_height = 0.0f;
-    for (size_t index = 0; index < shown.size(); ++index) {
-        const CatalogueItem& game = *shown[index];
-        const ImVec4 accent = card_accent(game.name);
-        if (index % static_cast<size_t>(columns) == 0) {
-            float title_height = 0.0f;
-            for (size_t i = index; i < shown.size() && i < index + columns; ++i)
-                title_height = std::max(title_height, ImGui::CalcTextSize(
-                    shown[i]->name.c_str(), nullptr, false,
-                    std::max(1.0f, width - ImGui::GetStyle().WindowPadding.x * 2.0f)).y);
-            row_height = std::max(126.0f * scale_, title_height + ImGui::GetTextLineHeight() +
-                ImGui::GetFrameHeight() + ImGui::GetStyle().WindowPadding.y * 2.0f +
-                ImGui::GetStyle().ItemSpacing.y * 2.0f);
-        }
-        if (index % static_cast<size_t>(columns) != 0) ImGui::SameLine();
-        ImGui::PushID(game.slug.c_str());
-        ImGui::PushStyleColor(ImGuiCol_Border, tinted(accent, 0.45f));
-        ImGui::BeginChild("##rm_game", ImVec2(width, row_height),
-                          ImGuiChildFlags_Borders,
-                          ImGuiWindowFlags_NoScrollbar |
-                              ImGuiWindowFlags_NoScrollWithMouse);
-        ImGui::TextWrapped("%s", game.name.c_str());
-        const double mib = static_cast<double>(game.total_bytes) / (1024.0 * 1024.0);
-        ImGui::TextColored(kMuted, "%d file%s  |  %.1f MiB", game.rom_files,
-                           game.rom_files == 1 ? "" : "s", mib);
-        ImGui::SetCursorPosY(row_height - ImGui::GetStyle().WindowPadding.y - ImGui::GetFrameHeight());
-        ImGui::PushStyleColor(ImGuiCol_Button, tinted(accent, 0.20f));
-        ImGui::BeginDisabled(retro_media_busy_ || games_folder_target_.empty());
-        if (ImGui::Button("DOWNLOAD", ImVec2(-1.0f, 0.0f))) {
-            retro_media_busy_ = true;
-            retro_media_message_ = "Downloading " + game.name + "...";
-            intent.retro_media_download = true;
-            intent.retro_media_slug = game.slug;
-        }
-        ImGui::EndDisabled();
-        ImGui::PopStyleColor();
-        ImGui::EndChild();
-        ImGui::PopStyleColor();
-        ImGui::PopID();
-    }
-    ImGui::EndChild();
 }
 
 void Ui::draw_system(Console& console, UiIntent& intent) {
@@ -1690,8 +1291,7 @@ void Ui::draw_about() {
     ImGui::TextColored(kPink, "INCLUDED FEATURES");
     ImGui::TextWrapped(
         "ISO/BIN/CUE/IMG/CHD | live multi-disc swap | gamepad and touch "
-        "controls | RetroMedia artwork/admin catalogue | shared mobile and "
-        "desktop core");
+        "controls | shared mobile and desktop core");
     end_panel();
     ImGui::PopStyleVar();
 }

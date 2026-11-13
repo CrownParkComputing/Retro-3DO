@@ -81,14 +81,6 @@ Hz, DSP output remains 44.1 kHz, and CD timing remains native. This can reduce
 CPU-bound slowdown without fast-forwarding sound or FMV; it cannot raise a
 frame rate deliberately capped by the game.
 
-The Android Settings page can sign in to a registered RetroMedia account and
-download one selected artwork piece per matched 3DO title (2D cover,
-screenshot, thumbnail or title screen). Sessions are encrypted with the
-Android Keystore; passwords are never written to the emulator settings. Media
-is resized and cached in private app storage, then shown directly on library
-cards. Downloads happen only when the user presses **Download Missing
-Artwork**, and use that account's normal daily allowance/credit balance.
-
 ### iOS and macOS
 
 ```sh
@@ -143,7 +135,6 @@ platform header, it belongs in `src/platform/` instead.
 - [x] On-screen controls, movable, saved per device
 - [x] Settings that survive a restart
 - [x] Original built-in no-BIOS hardware demonstration ROM
-- [x] RetroMedia account artwork downloads and illustrated library cards (Android)
 - [x] Scanline-timed VDLP updates
 - [ ] Full MADAM CEL pause/status timing
 - [ ] Remaining CD queries, CD audio and additional PBUS peripherals

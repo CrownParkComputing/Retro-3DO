@@ -64,13 +64,9 @@ during lateral movement.
 
 The launcher is now a fixed top-navigation layout. The A-Z/0-9 strip and search
 stay fixed while only the card child can scroll; the card scrollbar is hidden
-and direct finger swipes move the list. Settings contains the optional
-RetroMedia integration: native registered-account login (Firebase or local,
-according to `/api/auth/config`), an Android-Keystore-encrypted session, an
-explicit artwork-type selector, and user-triggered downloads of one matching
-piece per library game. Decoded covers are stored as bounded private RGBA cache
-files and loaded lazily into SDL textures on the game cards. No password enters
-`settings.cfg`, and no download starts automatically.
+and direct finger swipes move the list. The app is entirely offline: there is
+no account, no service and no network permission, and a library card shows a
+title tile rather than fetched artwork.
 
 The VDLP implements 2x output expansion and SDL presents it with vsync, but
 neither was the lateral-breakup fix. An exact Opera CCB/source comparison found

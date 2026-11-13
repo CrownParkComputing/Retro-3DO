@@ -3,7 +3,6 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "core/types.h"
@@ -19,8 +18,6 @@ union SDL_Event;
 namespace retro3do {
 
 class Console;
-struct RetroMediaArtwork;
-struct RetroMediaGame;
 
 // What the UI asks the application to do. It is consumed once per display
 // frame, keeping storage and machine mutations out of the drawing code.
@@ -51,16 +48,6 @@ struct UiIntent {
     bool rescan_games = false;
     bool import_gpu_driver = false;
     bool use_system_gpu_driver = false;
-    bool retro_media_login = false;
-    bool retro_media_logout = false;
-    bool retro_media_sync = false;
-    bool retro_media_artwork_changed = false;
-    bool retro_media_catalogue = false;
-    bool retro_media_download = false;
-    std::string retro_media_email;
-    std::string retro_media_password;
-    std::string retro_media_search;
-    std::string retro_media_slug;
     std::string folder_path;
     std::string folder_name;
 };
@@ -92,21 +79,11 @@ public:
                              const std::string& startup_message);
     void set_gpu_driver_status(const std::string& name,
                                const std::string& message);
-    void configure_retro_media(const std::string& media_type);
-    void set_retro_media_status(const std::string& email, int credits,
-                                int free_remaining, bool is_admin, bool busy,
-                                const std::string& message);
-    void set_retro_media_error(const std::string& message);
-    void set_retro_media_email_hint(const std::string& email);
-    void set_retro_media_artwork(
-        const std::vector<RetroMediaArtwork>& artwork);
-    void set_retro_media_catalogue(const std::vector<RetroMediaGame>& games);
     int renderer_backend() const { return renderer_backend_; }
     bool widescreen() const { return widescreen_; }
     bool bezel() const { return bezel_; }
     bool crt_effect() const { return crt_effect_; }
     const std::string& gpu_driver_name() const { return gpu_driver_name_; }
-    const std::string& retro_media_type() const { return retro_media_type_; }
     void suspend_renderer();
     bool resume_renderer(SDL_Renderer* renderer);
     void shutdown();
@@ -121,9 +98,9 @@ public:
     void render(SDL_Renderer* renderer);
 
 private:
-    enum class Page { Library, Settings, Artwork, Downloads, System, About };
+    enum class Page { Library, Settings, System, About };
     enum class Browsing { None, Bios, Disc };
-    enum class WizardStep { Welcome, Bios, Games, RetroMedia, Finish };
+    enum class WizardStep { Welcome, Bios, Games, Finish };
     enum class WizardPick { None, Bios, Games };
 
     void release_ui_texture();
@@ -138,8 +115,6 @@ private:
     void draw_library(Console& console, UiIntent& intent);
     void draw_settings(Console& console, bool touch_visible, bool touch_editing,
                        UiIntent& intent);
-    void draw_artwork(UiIntent& intent);
-    void draw_downloads(UiIntent& intent);
     void draw_system(Console& console, UiIntent& intent);
     void draw_about();
     void draw_overlay(Console& console, bool emulating, double display_fps,
@@ -151,17 +126,6 @@ private:
     void wake_menu_button();
     void draw_file_browser(UiIntent& intent);
     void load_splash_texture();
-    SDL_Texture* artwork_texture(const std::string& game_name);
-    void release_artwork_textures();
-    void clear_artwork_textures();
-
-    struct ArtworkTexture {
-        std::string path;
-        int width = 0;
-        int height = 0;
-        SDL_Texture* texture = nullptr;
-        bool attempted = false;
-    };
 
     FileBrowser browser_;
     GameLibrary library_;
@@ -208,25 +172,6 @@ private:
     int ui_texture_width_ = 0;
     int ui_texture_height_ = 0;
     SDL_Texture* splash_texture_ = nullptr;
-    std::unordered_map<std::string, ArtworkTexture> artwork_;
-    std::string retro_media_type_ = "box2d";
-    std::string retro_media_email_;
-    std::string retro_media_message_ = "Not signed in";
-    int retro_media_credits_ = 0;
-    int retro_media_free_remaining_ = 0;
-    bool retro_media_busy_ = false;
-    bool retro_media_admin_ = false;
-    char retro_media_email_buffer_[192] = {};
-    char retro_media_password_buffer_[192] = {};
-    char retro_media_search_buffer_[128] = {};
-    char retro_media_group_ = 0;
-    struct CatalogueItem {
-        std::string slug;
-        std::string name;
-        int rom_files = 0;
-        long long total_bytes = 0;
-    };
-    std::vector<CatalogueItem> retro_media_catalogue_;
 
     std::vector<LibraryDisc> active_discs_;
     size_t active_disc_ = 0;

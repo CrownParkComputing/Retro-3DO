@@ -275,12 +275,6 @@ bool App::init() {
         start_on_launch_ = true;
     }
 
-    if (AndroidStorage::available()) {
-        ui_->set_retro_media_status("", 0, 0, false, true,
-                                    "Checking account...");
-        AndroidStorage::begin_retro_media_status();
-    }
-
     emulator_->set_paused(!start_on_launch_);
     emulating_ = start_on_launch_;
     if (start_on_launch_) {
@@ -663,11 +657,6 @@ void App::load_settings() {
         settings_->get_bool(settings_key::kCrtEffect, false),
         settings_->get(settings_key::kGpuDriverName));
     ui_->set_renderer_status(actual_renderer_, renderer_startup_message_);
-    ui_->configure_retro_media(
-        settings_->get(settings_key::kRetroMediaCardType, "box2d"));
-    ui_->set_retro_media_email_hint(
-        AndroidStorage::retro_media_saved_email());
-    load_retro_media_artwork();
 
     // Remembered files are re-opened, but a failure is not reported as an
     // error: a SAF grant can be revoked and an iOS container is reassigned on
@@ -794,12 +783,6 @@ void App::save_library() {
     persisted_library_count_ = count;
 }
 
-void App::load_retro_media_artwork() {
-    if (!ui_) return;
-    ui_->set_retro_media_artwork(
-        AndroidStorage::retro_media_artwork(ui_->retro_media_type()));
-}
-
 void App::remember_game(const std::string& name, const std::string& target) {
     const std::string friendly = name.empty() ? Storage::base_name(target) : name;
     library_.add(friendly, target);
@@ -909,8 +892,6 @@ void App::save_settings() {
     settings_->set_bool(settings_key::kAspectWidescreen, ui_->widescreen());
     settings_->set_bool(settings_key::kBezel, ui_->bezel());
     settings_->set_bool(settings_key::kCrtEffect, ui_->crt_effect());
-    settings_->set(settings_key::kRetroMediaCardType,
-                   ui_->retro_media_type());
     save_library();
     settings_->save();
 }
@@ -1211,34 +1192,6 @@ void App::tick() {
         save_settings();
     }
 
-    const RetroMediaResult retro_media =
-        AndroidStorage::consume_retro_media_result();
-    if (retro_media.ready) {
-        if (retro_media.success) {
-            ui_->set_retro_media_status(
-                retro_media.email, retro_media.credits,
-                retro_media.free_remaining, retro_media.is_admin, false,
-                retro_media.message);
-            if (retro_media.operation == "SYNC") load_retro_media_artwork();
-            if (retro_media.operation == "CATALOGUE") {
-                ui_->set_retro_media_catalogue(
-                    AndroidStorage::retro_media_catalogue());
-            }
-            if (retro_media.operation == "DOWNLOAD") {
-                scan_games_folder(
-                    settings_->get(settings_key::kGamesFolderName),
-                    settings_->get(settings_key::kGamesFolderPath));
-            }
-        } else if (retro_media.operation == "STATUS" ||
-                   retro_media.message.find("session expired") !=
-                       std::string::npos) {
-            ui_->set_retro_media_status("", 0, 0, false, false,
-                                        retro_media.message);
-        } else {
-            ui_->set_retro_media_error(retro_media.message);
-        }
-    }
-
     // Frames per second, smoothed, for the overlay. Measured across the whole
     // turn of the loop, so it reflects what the user actually sees.
     static Uint64 last_counter = SDL_GetPerformanceCounter();
@@ -1292,34 +1245,6 @@ void App::tick() {
         ui_->set_gpu_driver_status("", "System driver selected - restart to apply");
         save_settings();
     }
-    if (intent.retro_media_login) {
-        AndroidStorage::begin_retro_media_login(intent.retro_media_email,
-                                                intent.retro_media_password);
-    }
-    if (intent.retro_media_logout) {
-        AndroidStorage::begin_retro_media_logout();
-    }
-    if (intent.retro_media_artwork_changed) {
-        load_retro_media_artwork();
-    }
-    if (intent.retro_media_sync) {
-        std::vector<std::string> names;
-        names.reserve(library_.games().size());
-        for (const LibraryGame& game : library_.games()) {
-            names.push_back(game.name);
-        }
-        AndroidStorage::begin_retro_media_sync(names,
-                                               ui_->retro_media_type());
-    }
-    if (intent.retro_media_catalogue) {
-        AndroidStorage::begin_retro_media_catalogue(intent.retro_media_search);
-    }
-    if (intent.retro_media_download) {
-        AndroidStorage::begin_retro_media_download(
-            intent.retro_media_slug,
-            settings_->get(settings_key::kGamesFolderPath));
-    }
-
     if (intent.bios_chosen && !intent.bios_path.empty()) {
         // A document URI is not a path and cannot be opened by name, so it goes
         // through the system for a descriptor instead. Everything downstream is
