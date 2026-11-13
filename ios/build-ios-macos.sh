@@ -44,6 +44,12 @@ ARCHIVE="${ARCHIVE:-0}"
 # against a named profile instead.
 PROFILE_NAME="${PROFILE_NAME:-}"
 SIGN_IDENTITY="${SIGN_IDENTITY:-Apple Distribution}"
+# xcodebuild -exportArchive picks its own certificate unless the export options
+# name one. On a machine whose keychain holds several "Apple Distribution"
+# identities it picks the wrong one, and the export fails with a message about
+# the profile not including the signing certificate. Give the SHA1 of the
+# certificate the profile itself carries and the export cannot go wrong.
+SIGNING_CERT_SHA1="${SIGNING_CERT_SHA1:-}"
 # App Store Connect refuses a CFBundleVersion it has seen before, and reports
 # it only after the entire upload has transferred.
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
@@ -134,6 +140,9 @@ if [ "$ARCHIVE" = "1" ]; then
   <key>signingStyle</key><string>manual</string>
   <key>provisioningProfiles</key>
   <dict><key>$BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>
+$(if [ -n "$SIGNING_CERT_SHA1" ]; then
+    printf '  <key>signingCertificate</key><string>%s</string>\n' "$SIGNING_CERT_SHA1"
+  fi)
   <key>uploadSymbols</key><true/>
   <key>destination</key><string>export</string>
 </dict></plist>
