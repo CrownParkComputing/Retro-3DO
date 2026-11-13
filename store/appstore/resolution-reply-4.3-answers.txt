@@ -1,0 +1,32 @@
+1. What it does, and the problem it solves
+A Sega 3DO Interactive Multiplayer emulator for iPhone and iPad. The 3DO is a 1993 CD-ROM console whose best games are light-gun arcade titles - Virtua Cop, Time Crisis - and playing them means the original console, a CRT and a gun. This puts that library on a touchscreen, the screen being the gun.
+
+It is not a wrapper. It emulates the machine - ARM60 CPU, CLIO and MADAM chipsets, VDLP graphics, DSP audio, XBUS and PBUS peripherals, the SPORT port and CD-ROM - and it is built for a phone: each instruction is decoded once and cached, and the emulator thread never presents frames.
+
+2. Intended user and target audience
+People who want the 3DO's light-gun and arcade games without the original console, a CRT and a gun; owners of original hardware who want to use the discs they own; and people who want a correct emulator rather than a 32-bit-era fork.
+
+3. The market gap, and why other apps do not fill it
+There is no serious 3DO emulator on iOS. The existing ones descend from a 1990s desktop emulator: the CPU re-decodes every instruction on every execution, the graphics chip is scalar C, and frames are presented from inside the emulation thread, so a slow present stalls emulation and the machine looks throttled rather than slow. They also predate arm64 iOS.
+
+This one differs in kind: decoded-and-cached instructions, no present from the emulation path, and accuracy measured against a reference - two commercial titles are pixel-identical to it at frame 20,000, and 250+ regression checks gate every build. You supply your own BIOS and discs, and every chip is CRC-checked before a game starts.
+
+4. Beta testing and the feedback applied
+The app has been in TestFlight on a public link throughout: three testers installed the submitted build on an iPhone 17 Pro and an iPad Pro on iOS 27.2.
+
+[FEEDBACK PLACEHOLDER]
+
+5. Standalone, or part of a suite on this account
+Standalone, and not a feature of another app. The account publishes ten others: C64-Retro (bundle com.vicemultiplatform.app, a third party's app, disclosed), DOSDeck, Dad's Wire Drawer, Retro-Amiga, Retro-Saturn, Retro-Spectrum, ST Desk, SplatLand, Stunt Car Racing 2026 and Virtua Cop Collection. Each emulates a different machine from a different codebase.
+
+6. Could this be an IAP or content addition here
+No, and there is no plausible candidate. This is a whole emulator for one machine - CPU, chipset, graphics, audio, CD subsystem, its own implementation and tests - with no network, advertising, in-app purchase or account in it.
+
+7. Shared code or assets with other apps here
+None, beyond standard third-party frameworks. Dear ImGui, SDL3, libchdr, miniz, the LZMA SDK and zstd are third-party and carry their own licences. The launcher, on-screen controller and emulator core are unique to this app.
+
+8. Shared codebase or content library with any third party
+With any other App Store app: none. With open-source projects: yes, and the app discloses it. It is built against public ARM6 and 3DO documentation and granted patents. It is not clean-room and does not claim to be - its PROVENANCE note records that FreeDO-descended Opera code was read as a compatibility reference, that the current code was rebuilt against public specifications and project tests, and that a few behaviour-only choices were kept. The NOTICE says the same.
+
+9. Created for a client, partner or third party
+No. Retro-3DO is Crown Park Computing's own product, designed and published by us. Its third-party material is open-source software and licensed libraries used under their licences with attribution - not content provided by a client.
