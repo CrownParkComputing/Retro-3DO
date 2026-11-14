@@ -120,7 +120,7 @@ private:
     // The shared walkthrough, drawn over whatever is behind it. The words come
     // from src/core/guide.cpp so that this and the iOS app say the same thing.
     void draw_guide(UiIntent& intent);
-    void open_guide() { guide_open_ = true; guide_step_ = 0; }
+    void open_guide() { guide_open_ = true; guide_step_ = 0; guide_focus_ = true; }
     void draw_overlay(Console& console, bool emulating, double display_fps,
                       double emulated_fps, double frame_ms, u64 underruns,
                       bool touch_visible, bool touch_editing, UiIntent& intent);
@@ -170,6 +170,11 @@ private:
     // being thrown out of a walkthrough for doing what it asked is worse than
     // not offering the button at all.
     bool guide_resume_ = false;
+    // Raise the guide the frame it opens. Dear ImGui keeps a persistent window
+    // order, so drawing last does NOT put a window on top -- the launcher,
+    // having been clicked, sorts above it, and the guide comes back invisible
+    // underneath. That is what "it does not return to the walkthrough" was.
+    bool guide_focus_ = false;
     // A demonstration the walkthrough started. Its only way out is back to the
     // walkthrough, so the quick menu offers that instead of the library.
     bool guide_demo_ = false;

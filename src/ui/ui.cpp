@@ -1559,6 +1559,7 @@ void Ui::draw_guide(UiIntent& intent) {
     if (guide_resume_ && browsing_ == Browsing::None) {
         guide_resume_ = false;
         guide_open_ = true;
+        guide_focus_ = true;
     }
     if (!guide_open_) return;
 
@@ -1585,6 +1586,10 @@ void Ui::draw_guide(UiIntent& intent) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
+    if (guide_focus_) {
+        ImGui::SetNextWindowFocus();
+        guide_focus_ = false;
+    }
     ImGui::Begin("##guide_backdrop", nullptr,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
                      ImGuiWindowFlags_NoSavedSettings);
