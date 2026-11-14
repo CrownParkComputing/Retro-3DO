@@ -99,7 +99,7 @@ public:
 
 private:
     enum class Page { Library, Settings, System, About };
-    enum class Browsing { None, Bios, Disc };
+    enum class Browsing { None, Bios, Disc, GamesFolder };
     enum class WizardStep { Welcome, Bios, Games, Finish };
     enum class WizardPick { None, Bios, Games };
 

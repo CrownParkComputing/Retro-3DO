@@ -62,9 +62,17 @@ SDL_EnumerationResult SDLCALL on_entry(void* userdata, const char* directory,
 
 }  // namespace
 
+void FileBrowser::open_folder(const std::string& title) {
+    // Every extension the machine can mount, shown but not selectable, so the
+    // user can see they are standing in the right folder before accepting it.
+    open(title, {".iso", ".chd", ".img", ".cue", ".bin"});
+    choosing_folder_ = true;
+}
+
 void FileBrowser::open(const std::string& title,
                        std::vector<std::string> extensions) {
     open_ = true;
+    choosing_folder_ = false;
     title_ = title;
     extensions_ = std::move(extensions);
     for (std::string& ext : extensions_) {
@@ -158,6 +166,29 @@ bool FileBrowser::draw(std::string* chosen_path, std::string* chosen_name) {
                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
                          ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
                          ImGuiWindowFlags_NoScrollbar)) {
+        // Choosing a folder means accepting where you are standing, so the
+        // button goes first: the user walks into a folder and presses it.
+        if (choosing_folder_ && !directory_.empty()) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.08f, 0.35f, 0.39f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.11f, 0.47f, 0.52f, 1.0f));
+            const bool accept = ImGui::Button("USE THIS FOLDER", ImVec2(-1.0f, 42.0f));
+            ImGui::PopStyleColor(2);
+            if (accept) {
+                if (chosen_path != nullptr) *chosen_path = directory_;
+                if (chosen_name != nullptr) {
+                    const size_t slash = directory_.find_last_of("/\\");
+                    *chosen_name = slash == std::string::npos
+                                       ? directory_
+                                       : directory_.substr(slash + 1);
+                }
+                open_ = false;
+                choosing_folder_ = false;
+                ImGui::End();
+                return true;
+            }
+            ImGui::TextDisabled("%s", directory_.c_str());
+            ImGui::Separator();
+        }
         const float right = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
         bool first_root = true;
         auto wrap_root = [&](const char* label) {
@@ -261,11 +292,15 @@ bool FileBrowser::draw(std::string* chosen_path, std::string* chosen_name) {
                     : Storage::join(directory_, entry.name);
                 if (entry.is_directory) {
                     navigate_to(target);
-                } else {
+                } else if (!choosing_folder_) {
                     *chosen_path = target;
                     if (chosen_name != nullptr) *chosen_name = entry.name;
                     chose = true;
                 }
+                // A file tapped while choosing a folder does nothing on
+                // purpose: the files are there to confirm you are in the right
+                // place, and silently accepting one instead would be worse
+                // than ignoring the tap.
                 // Navigation replaces entries_; never advance an invalidated iterator.
                 break;
             }

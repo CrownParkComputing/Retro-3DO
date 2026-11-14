@@ -1483,6 +1483,10 @@ void Ui::draw_file_browser(UiIntent& intent) {
         intent.bios_chosen = true;
         intent.bios_path = picked;
         intent.bios_name = picked_name;
+    } else if (browsing_ == Browsing::GamesFolder) {
+        intent.games_folder_chosen = true;
+        intent.folder_path = picked;
+        intent.folder_name = picked_name;
     } else if (browsing_ == Browsing::Disc) {
         std::snprintf(disc_path_buffer_, sizeof(disc_path_buffer_), "%s",
                       picked_name.empty() ? picked.c_str() : picked_name.c_str());
@@ -1682,9 +1686,8 @@ void Ui::draw_guide(UiIntent& intent) {
                     guide_open_ = false;
                     guide_resume_ = true;
                 } else {
-                    browsing_ = Browsing::Disc;
-                    browser_.open("Choose the folder your games are in",
-                                  {".iso", ".chd", ".img", ".cue", ".bin"});
+                    browsing_ = Browsing::GamesFolder;
+                    browser_.open_folder("Choose the folder your games are in");
                     guide_open_ = false;
                     guide_resume_ = true;
                 }

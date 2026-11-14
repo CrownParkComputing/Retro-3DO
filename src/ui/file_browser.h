@@ -18,6 +18,12 @@ public:
     // case-insensitively, with the leading dot, and an empty list shows every
     // file.
     void open(const std::string& title, std::vector<std::string> extensions);
+
+    // Open to choose a FOLDER rather than a file. The list still shows files,
+    // because seeing the discs in a folder is how anybody knows it is the
+    // right one, but they cannot be picked -- a button accepts whichever
+    // folder is open instead.
+    void open_folder(const std::string& title);
     void close();
     bool is_open() const { return open_; }
 
@@ -42,6 +48,7 @@ private:
     // modes. They differ only in how a location is named and listed; everything
     // the user sees is the same.
     bool using_documents_ = false;
+    bool choosing_folder_ = false;
 
     bool open_ = false;
     std::string title_;

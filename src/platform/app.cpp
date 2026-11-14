@@ -839,6 +839,37 @@ void App::use_bios_folder(const std::string& name, const std::string& target) {
     save_settings();
 }
 
+namespace {
+
+// The same shape AndroidStorage::list returns, read off a real filesystem.
+// Without this a folder chosen on the desktop scans to nothing: the scanner
+// was written for Android's document URIs, and the list call it makes is a
+// stub returning empty on every other platform.
+std::vector<DocumentEntry> list_folder(const std::string& folder) {
+    if (AndroidStorage::available()) return AndroidStorage::list(folder);
+
+    struct Collected { std::vector<DocumentEntry> entries; };
+    Collected collected;
+    SDL_EnumerateDirectory(
+        folder.c_str(),
+        [](void* data, const char* dir, const char* name) -> SDL_EnumerationResult {
+            auto* out = static_cast<Collected*>(data);
+            const std::string path = Storage::join(dir ? dir : "", name ? name : "");
+            out->entries.push_back(DocumentEntry{name ? name : "", path,
+                                                 Storage::is_directory(path)});
+            return SDL_ENUM_CONTINUE;
+        },
+        &collected);
+    std::sort(collected.entries.begin(), collected.entries.end(),
+              [](const DocumentEntry& a, const DocumentEntry& b) {
+                  if (a.is_directory != b.is_directory) return a.is_directory;
+                  return a.name < b.name;
+              });
+    return collected.entries;
+}
+
+}  // namespace
+
 void App::scan_games_folder(const std::string& name, const std::string& target) {
     if (target.empty()) return;
     settings_->set(settings_key::kGamesFolderPath, target);
@@ -852,7 +883,7 @@ void App::scan_games_folder(const std::string& name, const std::string& target) 
     for (size_t cursor = 0; cursor < pending.size() && cursor < 1024 && added < 2048;
          ++cursor) {
         const auto [folder, depth] = pending[cursor];
-        const std::vector<DocumentEntry> entries = AndroidStorage::list(folder);
+        const std::vector<DocumentEntry> entries = list_folder(folder);
         const bool folder_has_cue = std::any_of(
             entries.begin(), entries.end(), [](const DocumentEntry& entry) {
                 const std::string lower = lowercased(entry.name);
