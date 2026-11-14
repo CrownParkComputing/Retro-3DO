@@ -26,6 +26,7 @@ struct Session: View {
                         .transition(.opacity)
                 }
                 Screen()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onTapGesture {
                         withAnimation(.easeInOut(duration: 0.2)) { controlsVisible.toggle() }
                     }
@@ -35,6 +36,11 @@ struct Session: View {
                         .transition(.opacity)
                 }
             }
+            // Both maxima matter. Without them the row is only as tall as the
+            // control columns -- about 277pt -- and the picture is fitted into
+            // that instead of into the screen, which measured 1109px wide
+            // where 1482 was available.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(edges: .vertical)
 
             if controlsVisible {
