@@ -51,7 +51,7 @@ SIGN_IDENTITY="${SIGN_IDENTITY:-Apple Distribution}"
 SIGNING_CERT_SHA1="${SIGNING_CERT_SHA1:-}"
 # App Store Connect refuses a CFBundleVersion it has seen before, and reports
 # it only after the entire upload has transferred.
-BUILD_NUMBER="${BUILD_NUMBER:-1}"
+BUILD_NUMBER="${BUILD_NUMBER:-$(date -u +%Y%m%d%H%M)}"
 MARKETING_VERSION="${MARKETING_VERSION:-1.0}"
 
 SIGN_STYLE="Automatic"
