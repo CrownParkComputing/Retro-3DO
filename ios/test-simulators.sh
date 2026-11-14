@@ -61,15 +61,23 @@ PY
     xcrun simctl shutdown "$udid"
 }
 
-test_device 'iPhone 16 Pro Max' iphone-6.9in
-test_device 'iPad Pro 13-inch' ipad-13in
+devices=("${@:-iphone-6.9in ipad-13in}")
+if [ "$#" = 0 ]; then devices=(iphone-6.9in ipad-13in); fi
+for device in "${devices[@]}"; do
+    case "$device" in
+        iphone-6.9in) test_device 'iPhone 16 Pro Max' "$device" ;;
+        ipad-13in) test_device 'iPad Pro 13-inch' "$device" ;;
+        *) echo "Unknown device: $device" >&2; exit 1 ;;
+    esac
+done
 
 # Maestro captures the screen in its actual orientation. Never rotate an iPad
 # portrait screen into a sideways landscape store image merely to match a size.
-python3 - <<'PY'
-import pathlib, shutil, struct
+python3 - "${devices[@]}" <<'PY'
+import pathlib, shutil, struct, sys
 root = pathlib.Path('shots')
-for prefix, landscape in [('iphone-6.9in', (2868, 1320)), ('ipad-13in', (2752, 2064))]:
+for prefix in sys.argv[1:]:
+    landscape = (2868, 1320) if prefix.startswith('iphone') else (2752, 2064)
     destination = root / 'store' / prefix
     destination.mkdir(parents=True, exist_ok=True)
     names = ['01-library', '02-guide', '03-controls', '04-demo']

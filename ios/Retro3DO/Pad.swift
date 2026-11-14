@@ -136,6 +136,6 @@ struct Pad {
     private func set(_ next: UInt32) {
         guard next != mask else { return }
         mask = next
-        r3_pad(next)
+        ControllerInput.shared.setTouch(next)
     }
 }

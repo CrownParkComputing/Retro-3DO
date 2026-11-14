@@ -24,6 +24,7 @@ set(RETRO3DO_SWIFT_SOURCES
     Retro3DO/Sound.swift
     Retro3DO/Pad.swift
     Retro3DO/PadLayout.swift
+    Retro3DO/ControllerInput.swift
     Retro3DO/Importer.swift
     Retro3DO/SettingsSheet.swift
     Retro3DO/GuideView.swift
@@ -92,6 +93,7 @@ target_link_libraries(Retro3DO PRIVATE
     "-framework CoreGraphics"
     "-framework AVFoundation"
     "-framework UniformTypeIdentifiers"
+    "-framework GameController"
 )
 
 set_target_properties(Retro3DO PROPERTIES

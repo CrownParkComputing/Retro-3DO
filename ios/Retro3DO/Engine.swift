@@ -51,11 +51,13 @@ final class Engine: ObservableObject {
     func start() {
         guard !started else { return }
         started = r3_start(Engine.supportDirectory.path)
+        if started { ControllerInput.shared.start() }
         refresh()
     }
 
     func shutdown() {
         guard started else { return }
+        ControllerInput.shared.stop()
         r3_shutdown()
         started = false
     }

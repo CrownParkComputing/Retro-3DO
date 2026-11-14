@@ -44,19 +44,37 @@ jobs:
       - name: Build for the simulator
         run: TARGET=simulator ./ios/build-ios-macos.sh
 
+      - name: Package the simulator application for device checks
+        run: |
+          app=$(find ios/build -name 'Retro-3DO.app' -type d -print -quit)
+          test -n "$app"
+          ditto -c -k --keepParent "$app" /tmp/retro3do-simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retro3do-simulator
+          path: /tmp/retro3do-simulator.zip
+
   # Exercise the native wizard and session transitions on both device families.
   screenshots:
-    name: iOS simulator screenshots
+    name: iOS simulator tests (${{ matrix.device }})
+    needs: simulator
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iphone-6.9in, ipad-13in]
     runs-on: macos-26
     timeout-minutes: 60
     if: github.ref == 'refs/heads/ios-shelf' || (github.event_name == 'workflow_dispatch' && inputs.screenshots)
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
         with:
-          submodules: recursive
-
-      - name: Build for the simulator
-        run: TARGET=simulator ./ios/build-ios-macos.sh
+          name: retro3do-simulator
+          path: /tmp/retro3do-simulator
+      - name: Install the verified simulator application
+        run: |
+          mkdir -p ios/build
+          ditto -x -k /tmp/retro3do-simulator/retro3do-simulator.zip ios/build
 
       - uses: actions/setup-java@v4
         with:
@@ -75,12 +93,12 @@ jobs:
         env:
           MAESTRO_CLI_NO_ANALYTICS: 'true'
           MAESTRO_DRIVER_STARTUP_TIMEOUT: '180000'
-        run: ./ios/test-simulators.sh
+        run: ./ios/test-simulators.sh "${{ matrix.device }}"
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: retro3do-screenshots
+          name: retro3do-screenshots-${{ matrix.device }}
           path: shots
           if-no-files-found: error
 

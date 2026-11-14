@@ -73,12 +73,13 @@ struct Session: View {
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .onAppear {
+            ControllerInput.shared.setActive(true)
             sound.start()
             engine.setPaused(false)
         }
         .onDisappear {
             sound.stop()
-            r3_pad(0)
+            ControllerInput.shared.setActive(false)
         }
         .confirmationDialog("", isPresented: $showingMenu, titleVisibility: .hidden) {
             Button("Keep playing", role: .cancel) {}

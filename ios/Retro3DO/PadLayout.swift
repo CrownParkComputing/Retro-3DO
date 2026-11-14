@@ -128,6 +128,6 @@ struct PadLayoutEditor: View {
             .padding(.top, 12)
         }
         .statusBarHidden()
-        .onDisappear { layout.save(); r3_pad(0) }
+        .onDisappear { layout.save(); ControllerInput.shared.setTouch(0) }
     }
 }

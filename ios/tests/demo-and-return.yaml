@@ -11,8 +11,10 @@ appId: com.crownparkcomputing.retro3DO
 - takeScreenshot: 04-demo
 - tapOn: "Button A"
 - tapOn: "Session menu"
-- assertVisible: "Keep playing"
-- tapOn: "Keep playing"
+- assertVisible: "Start again"
+# In landscape, iOS presents this as a popover and omits the cancel row.
+- tapOn:
+    point: "10%,20%"
 - assertVisible:
     id: emulator-screen
 - tapOn: "Session menu"
