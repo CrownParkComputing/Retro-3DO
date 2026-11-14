@@ -47,7 +47,13 @@ struct Session: View {
                     }
                 }
             }
-            .ignoresSafeArea()
+            // Vertical only. Ignoring the horizontal inset too let the D-pad
+            // slide under the Dynamic Island, which in landscape sits along
+            // the left edge exactly where the left chevron is: the screenshot
+            // showed the cross with its left arm sliced off. The picture gives
+            // up the inset instead, which it can afford and the controls
+            // cannot.
+            .ignoresSafeArea(edges: .vertical)
 
             if controlsVisible {
                 VStack {
