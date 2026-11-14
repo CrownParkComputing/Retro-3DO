@@ -84,6 +84,14 @@ jobs:
           }
 
           # $1 pattern  $2 file prefix  $3 required landscape size WxH
+          #   $4 rotation in degrees clockwise
+          #
+          # The rotation differs per device and is not guessable: the app is
+          # landscape-only, but simctl captures the device in its physical
+          # orientation and iOS does not pick the same landscape on both. The
+          # iPhone comes out needing 270 and the iPad 90 -- checked by eye on
+          # the artifacts, because a sideways screenshot is still exactly the
+          # right number of pixels and passes every automatic check there is.
           capture() {
             local udid; udid=$(find_device "$1") || {
               echo "::error::no simulator matching $1"; exit 1; }
@@ -104,11 +112,7 @@ jobs:
               xcrun simctl io "$udid" screenshot "shots/$name-raw.png"
               xcrun simctl terminate "$udid" com.crownparkcomputing.retro3DO || true
 
-              # The app is landscape-only but simctl captures the device in its
-              # physical orientation, so every shot comes out portrait and has
-              # to be turned. 270 clockwise, matching the direction that read
-              # correctly when these were checked by eye.
-              sips -r 270 "shots/$name-raw.png" --out "shots/$name.png" >/dev/null
+              sips -r "$4" "shots/$name-raw.png" --out "shots/$name.png" >/dev/null
               rm -f "shots/$name-raw.png"
 
               local got
@@ -123,8 +127,8 @@ jobs:
             xcrun simctl shutdown "$udid" || true
           }
 
-          capture 'iPhone 1[6-9] Pro Max' iphone-6.9in 2868x1320
-          capture 'iPad Pro 13-inch'      ipad-13in   2752x2064
+          capture 'iPhone 1[6-9] Pro Max' iphone-6.9in 2868x1320 270
+          capture 'iPad Pro 13-inch'      ipad-13in   2752x2064 90
 
           mkdir -p shots/crashes
           cp ~/Library/Logs/DiagnosticReports/*Retro* shots/crashes/ 2>/dev/null || true
