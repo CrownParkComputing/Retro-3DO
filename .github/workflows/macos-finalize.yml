@@ -11,7 +11,8 @@ on:
         description: SHA-256 of the locally signed archive
         default: d1f0e8badd16ad544262f221d9b6c814f47b9b238907e927475ff9c824b56b18
 permissions:
-  contents: read
+  # GitHub requires push access to read unpublished draft releases.
+  contents: write
 concurrency:
   group: retro3do-macos-finalize-${{ github.ref }}
   cancel-in-progress: false
