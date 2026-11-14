@@ -516,7 +516,7 @@ UiIntent Ui::build(Console& console, bool emulating, double display_fps,
         guide_seen_ = true;
         open_guide();
     }
-    draw_guide();
+    draw_guide(intent);
 
     ImGui::Render();
     return intent;
@@ -787,12 +787,9 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
     };
     nav_button("LIBRARY", Page::Library);
     next_nav();
-    if (ImGui::Button("DEMO", ImVec2(action_width, 40.0f * scale_))) {
-        intent.start_demo = true;
-        session_available_ = true;
-        show_launcher_ = false;
-        wake_menu_button();
-    }
+    // No DEMO button here on purpose. The demonstration is part of being shown
+    // round the app, so the walkthrough is the only thing that offers it, and
+    // leaving it returns there rather than dropping the user on the library.
     nav_button("SETTINGS", Page::Settings);
     nav_button("SYSTEM", Page::System);
     if (ImGui::Button("GUIDE", ImVec2(action_width, 40.0f * scale_))) open_guide();
@@ -1450,7 +1447,19 @@ void Ui::draw_quick_menu(Console& console, bool emulating, bool touch_visible,
         intent.reset = true;
         quick_menu_ = false;
     }
-    if (ImGui::Button("RETURN TO LIBRARY", ImVec2(-1.0f, 0.0f))) {
+    // A demonstration the walkthrough started has no way out to the library:
+    // it goes back to the walkthrough, which is what the user was doing.
+    if (guide_demo_) {
+        if (ImGui::Button("BACK TO THE GUIDE", ImVec2(-1.0f, 0.0f))) {
+            guide_demo_ = false;
+            show_launcher_ = true;
+            quick_menu_ = false;
+            intent.eject = true;
+            open_guide();
+            // Back where they were, not at step one again.
+            guide_step_ = guide_demo_step_;
+        }
+    } else if (ImGui::Button("RETURN TO LIBRARY", ImVec2(-1.0f, 0.0f))) {
         page_ = Page::Library;
         show_launcher_ = true;
         quick_menu_ = false;
@@ -1546,7 +1555,11 @@ void Ui::render(SDL_Renderer* renderer) {
 // modal on purpose: a first-time user being talked through the app should not
 // be able to half-start a game underneath it.
 // ---------------------------------------------------------------------------
-void Ui::draw_guide() {
+void Ui::draw_guide(UiIntent& intent) {
+    if (guide_resume_ && browsing_ == Browsing::None) {
+        guide_resume_ = false;
+        guide_open_ = true;
+    }
     if (!guide_open_) return;
 
     // Android grants a folder and the desktop points at one; the platform
@@ -1623,11 +1636,78 @@ void Ui::draw_guide() {
     // The wrap position has to be pushed INSIDE the child. BeginChild starts a
     // new window and the outer PushTextWrapPos does not reach into it, so the
     // text ran straight off the right edge and was clipped rather than wrapped.
-    ImGui::BeginChild("##guide_body", ImVec2(0.0f, -56.0f * scale_));
+    // Leave room for the navigation row, and for the action row when the step
+    // has one -- otherwise the buttons it offers are pushed off the card.
+    const float reserved = (step->action != kActionNone ? 104.0f : 56.0f) * scale_;
+    ImGui::BeginChild("##guide_body", ImVec2(0.0f, -reserved));
     ImGui::PushTextWrapPos(0.0f);
     ImGui::TextUnformatted(body);
     ImGui::PopTextWrapPos();
     ImGui::EndChild();
+
+    // What the step can do, offered as buttons rather than described. A file
+    // picker needs the guide out of the way, so it hides and resumes.
+    auto perform = [&](GuideAction action) {
+        switch (action) {
+            case kActionPlayDemo:
+                intent.start_demo = true;
+                session_available_ = true;
+                show_launcher_ = false;
+                guide_open_ = false;
+                guide_demo_ = true;
+                guide_demo_step_ = guide_step_;
+                wake_menu_button();
+                break;
+            case kActionAddGame:
+                browsing_ = Browsing::Disc;
+                browser_.open("Choose a game", {".iso", ".chd", ".img", ".cue", ".bin"});
+                guide_open_ = false;
+                guide_resume_ = true;
+                break;
+            case kActionAddBios:
+                browsing_ = Browsing::Bios;
+                browser_.open("Choose your 3DO system ROM", {".rom", ".bin"});
+                guide_open_ = false;
+                guide_resume_ = true;
+                break;
+            case kActionChooseFolder:
+                if (AndroidStorage::available()) {
+                    wizard_pick_ = WizardPick::Games;
+                    AndroidStorage::pick_folder();
+                    guide_open_ = false;
+                    guide_resume_ = true;
+                } else {
+                    browsing_ = Browsing::Disc;
+                    browser_.open("Choose the folder your games are in",
+                                  {".iso", ".chd", ".img", ".cue", ".bin"});
+                    guide_open_ = false;
+                    guide_resume_ = true;
+                }
+                break;
+            case kActionNone:
+                break;
+        }
+    };
+
+    if (step->action != kActionNone && step->action_label != nullptr) {
+        ImGui::PushStyleColor(ImGuiCol_Button, tinted(accent, 0.34f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, tinted(accent, 0.50f));
+        const bool wide = step->action2 == kActionNone;
+        if (ImGui::Button(step->action_label,
+                          ImVec2(wide ? -1.0f : ImGui::GetContentRegionAvail().x * 0.5f -
+                                        ImGui::GetStyle().ItemSpacing.x,
+                                 40.0f * scale_))) {
+            perform(step->action);
+        }
+        ImGui::PopStyleColor(2);
+        if (!wide && step->action2_label != nullptr) {
+            ImGui::SameLine();
+            if (ImGui::Button(step->action2_label, ImVec2(-1.0f, 40.0f * scale_))) {
+                perform(step->action2);
+            }
+        }
+        ImGui::Spacing();
+    }
 
     const float button = 150.0f * scale_;
     if (guide_step_ > 0) {

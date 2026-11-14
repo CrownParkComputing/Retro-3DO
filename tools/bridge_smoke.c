@@ -181,6 +181,27 @@ int main(int argc, char** argv) {
         if (i == 2 && strstr(body, "Downloads") == NULL)
             return fail("the iOS storage step stopped naming Downloads");
     }
+    /* Each step's offer, printed so the walkthrough can be read at a glance,
+       and asserted so the buttons cannot quietly go missing. */
+    int saw_demo = 0, saw_bios = 0, saw_game = 0;
+    for (int i = 0; i < steps; ++i) {
+        char title[128], label[128] = {0};
+        r3_guide_title(i, title, sizeof title);
+        const int act = r3_guide_action(i, 0);
+        if (act != R3_GUIDE_NONE) r3_guide_action_label(i, 0, label, sizeof label);
+        printf("   %d %-32s action %d %s\n", i + 1, title, act, label);
+        if (act == R3_GUIDE_PLAY_DEMO) saw_demo = 1;
+        if (act == R3_GUIDE_ADD_BIOS)  saw_bios = 1;
+        if (act == R3_GUIDE_ADD_GAME)  saw_game = 1;
+        if (act == R3_GUIDE_CHOOSE_FOLDER)
+            return fail("iOS was offered a folder to choose, which it cannot do");
+        if (act != R3_GUIDE_NONE && label[0] == 0)
+            return fail("a step offers an action with no button text");
+    }
+    if (!saw_demo) return fail("the walkthrough cannot start the demo");
+    if (!saw_bios) return fail("the walkthrough cannot import a system ROM");
+    if (!saw_game) return fail("the walkthrough cannot import a game");
+
     char body[2048];
     r3_guide_body(2, "the + tile", body, sizeof body);
     if (strstr(body, "the + tile") == NULL) return fail("the control name never reached the text");

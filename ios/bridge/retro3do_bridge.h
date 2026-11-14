@@ -146,6 +146,18 @@ int r3_guide_body(int step, const char *add_control, char *out, int out_len);
 // same in every version of the app rather than being restyled three times.
 uint32_t r3_guide_accent(int step);
 
+// What a step can do for the user, and what to call the button. A step offers
+// at most two; `slot` is 0 or 1 and R3_GUIDE_NONE means there is nothing there.
+enum {
+    R3_GUIDE_NONE          = 0,
+    R3_GUIDE_PLAY_DEMO     = 1,
+    R3_GUIDE_ADD_GAME      = 2,
+    R3_GUIDE_ADD_BIOS      = 3,
+    R3_GUIDE_CHOOSE_FOLDER = 4,   // never reaches iOS
+};
+int r3_guide_action(int step, int slot);
+int r3_guide_action_label(int step, int slot, char *out, int out_len);
+
 // --------------------------------------------------------------- diagnostics --
 
 // The last failure, phrased for a person rather than a log. Never NULL.

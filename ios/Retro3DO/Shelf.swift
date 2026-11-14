@@ -26,8 +26,6 @@ struct Shelf: View {
 
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 22) {
-                        DemoTile { engine.playDemo() }
-
                         ForEach(engine.discs) { disc in
                             DiscTile(disc: disc)
                                 .onTapGesture { engine.play(disc) }
@@ -64,7 +62,16 @@ struct Shelf: View {
             SettingsSheet(showGuide: { showingSettings = false; showingGuide = true })
                 .environmentObject(engine)
         }
-        .sheet(isPresented: $showingGuide) { GuideView() }
+        .sheet(isPresented: $showingGuide) { GuideView().environmentObject(engine) }
+        .onChange(of: engine.playing) { playing in
+            // Coming out of a session the walkthrough started puts the user
+            // back in the walkthrough rather than on a shelf they have not
+            // been introduced to yet.
+            if !playing && engine.startedFromGuide {
+                engine.startedFromGuide = false
+                showingGuide = true
+            }
+        }
         .task {
             // First launch only, and marked as seen the moment it is shown
             // rather than when it is finished: somebody who skips it has still
@@ -129,33 +136,6 @@ private struct TileShape<Content: View>: View {
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous)
                     .strokeBorder(Theme.tileEdge, lineWidth: 1))
-    }
-}
-
-// Always the first tile, and on a fresh install the only one that is not a
-// plus. It needs no system ROM and no disc, so a new user has something to
-// play before they have supplied anything at all.
-private struct DemoTile: View {
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            TileShape {
-                VStack(spacing: 12) {
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 46, weight: .regular))
-                        .foregroundStyle(Theme.spectrum)
-                    Text("Demo")
-                        .font(.system(size: 19, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.ink)
-                    Text("Plays straight away")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.inkDim)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Play the built-in demo")
     }
 }
 

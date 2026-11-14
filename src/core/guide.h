@@ -24,6 +24,18 @@ enum GuidePlatform : unsigned {
     kGuideEverywhere = kGuideIos | kGuideAndroid | kGuideDesktop,
 };
 
+// What a step offers to do for the user, rather than only describe. Each front
+// end maps these onto its own machinery -- a document picker on iOS, the
+// storage framework on Android, a file browser on the desktop -- which is the
+// only way one walkthrough can show three different apps how they work.
+enum GuideAction : unsigned {
+    kActionNone = 0,
+    kActionPlayDemo,      // start the built-in demonstration there and then
+    kActionAddGame,       // import a disc image: Downloads, Files, anywhere
+    kActionAddBios,       // import a system ROM, filed wherever this platform keeps it
+    kActionChooseFolder,  // grant or point at the folder games live in
+};
+
 struct GuideStep {
     const char* title;
     const char* body;
@@ -31,6 +43,12 @@ struct GuideStep {
     // 0xRRGGBB, carried here so a step is the same colour in every front end.
     // Taken from the app's own spectrum rather than invented per platform.
     unsigned    accent;
+    // Up to two things the step can do. Two because Android needs both: grant
+    // a folder, or bring in a single file from Downloads.
+    GuideAction action;
+    const char* action_label;
+    GuideAction action2;
+    const char* action2_label;
 };
 
 // How many steps this platform shows, and the n-th of them.

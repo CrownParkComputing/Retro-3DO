@@ -114,7 +114,12 @@ struct Session: View {
         .confirmationDialog("", isPresented: $showingMenu, titleVisibility: .hidden) {
             Button("Keep playing", role: .cancel) {}
             Button("Start again") { engine.reset() }
-            Button("Back to the shelf") { dismiss() }
+            // There is no way out to the shelf from a demo the walkthrough
+            // started. It goes back to the walkthrough, which is where the
+            // user was and what they were in the middle of.
+            Button(engine.startedFromGuide ? "Back to the guide" : "Back to the shelf") {
+                dismiss()
+            }
         }
         .onChange(of: showingMenu) { open in engine.setPaused(open) }
     }

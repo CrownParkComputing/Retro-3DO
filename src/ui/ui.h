@@ -119,7 +119,7 @@ private:
     void draw_about();
     // The shared walkthrough, drawn over whatever is behind it. The words come
     // from src/core/guide.cpp so that this and the iOS app say the same thing.
-    void draw_guide();
+    void draw_guide(UiIntent& intent);
     void open_guide() { guide_open_ = true; guide_step_ = 0; }
     void draw_overlay(Console& console, bool emulating, double display_fps,
                       double emulated_fps, double frame_ms, u64 underruns,
@@ -165,6 +165,15 @@ private:
     bool guide_open_ = false;
     bool guide_seen_ = false;
     int  guide_step_ = 0;
+    // Set when a step sends the user off to pick a file. The guide hides
+    // itself so the browser is visible, then comes back where it left off --
+    // being thrown out of a walkthrough for doing what it asked is worse than
+    // not offering the button at all.
+    bool guide_resume_ = false;
+    // A demonstration the walkthrough started. Its only way out is back to the
+    // walkthrough, so the quick menu offers that instead of the library.
+    bool guide_demo_ = false;
+    int  guide_demo_step_ = 0;
     WizardPick wizard_pick_ = WizardPick::None;
     std::string bios_folder_name_;
     std::string bios_folder_target_;

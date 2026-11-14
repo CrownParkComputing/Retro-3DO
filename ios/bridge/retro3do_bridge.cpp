@@ -578,3 +578,16 @@ uint32_t r3_guide_accent(int step) {
     const GuideStep* s = guide_step(kGuideIos, static_cast<std::size_t>(step));
     return (step < 0 || s == nullptr) ? 0xFD9E3Du : s->accent;
 }
+
+int r3_guide_action(int step, int slot) {
+    const GuideStep* s = guide_step(kGuideIos, static_cast<std::size_t>(step));
+    if (step < 0 || s == nullptr) return R3_GUIDE_NONE;
+    return static_cast<int>(slot == 0 ? s->action : s->action2);
+}
+
+int r3_guide_action_label(int step, int slot, char* out, int out_len) {
+    const GuideStep* s = guide_step(kGuideIos, static_cast<std::size_t>(step));
+    if (step < 0 || s == nullptr) return 0;
+    const char* label = slot == 0 ? s->action_label : s->action2_label;
+    return label == nullptr ? 0 : copy_out(label, out, out_len);
+}

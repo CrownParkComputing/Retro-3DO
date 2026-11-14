@@ -20,6 +20,11 @@ final class Engine: ObservableObject {
     @Published private(set) var hasBios = false
     @Published private(set) var playing = false
     @Published var message: String?
+    /// True while a session that the walkthrough started is running. The
+    /// session hides its way out to the shelf and goes back to the guide
+    /// instead: somebody being walked through the app should not be dropped
+    /// somewhere else halfway through a sentence.
+    @Published var startedFromGuide = false
 
     private var started = false
 
@@ -67,11 +72,13 @@ final class Engine: ObservableObject {
 
     // --- playing ----------------------------------------------------------
 
-    func playDemo() {
+    func playDemo(fromGuide: Bool = false) {
+        startedFromGuide = fromGuide
         if r3_play_demo() { playing = true } else { report() }
     }
 
     func play(_ disc: Disc) {
+        startedFromGuide = false
         if r3_play_disc(disc.path) { playing = true } else { report() }
     }
 

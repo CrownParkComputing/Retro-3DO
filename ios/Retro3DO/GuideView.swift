@@ -6,8 +6,11 @@ import SwiftUI
 // this, the Android app and the desktop build all say the same thing — see
 // src/core/guide.cpp. This file is only the shape it is read in.
 struct GuideView: View {
+    @EnvironmentObject private var engine: Engine
     @Environment(\.dismiss) private var dismiss
     @State private var step = 0
+    @State private var importing = false
+    @State private var note: String?
 
     /// Named here rather than in the shared text because each platform's
     /// control has a different name; the core leaves a {ADD} token for it.
@@ -67,12 +70,26 @@ struct GuideView: View {
                 .padding(.vertical, 24)
             }
 
+            actions
+                .padding(.horizontal, 28)
+
             controls
                 .padding(.horizontal, 28)
                 .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.background.ignoresSafeArea())
+        .sheet(isPresented: $importing) {
+            Importer { urls in
+                importing = false
+                var said: String?
+                for url in urls { said = engine.importFile(at: url) ?? said }
+                // Silence means the obvious thing happened and the tile is
+                // already there, which the user is about to be shown.
+                note = said ?? "Added. It is on your shelf."
+            }
+            .ignoresSafeArea()
+        }
     }
 
     // A row of bars rather than "3 of 7": it shows how much is left without
@@ -90,14 +107,68 @@ struct GuideView: View {
         .accessibilityLabel("Step \(step + 1) of \(count)")
     }
 
+    // What this step can do, rather than only describe. A step offers at most
+    // two, which is what Android needs; iOS never sees more than one.
+    @ViewBuilder private var actions: some View {
+        let first = Int(r3_guide_action(Int32(step), 0))
+        if first != Int(R3_GUIDE_NONE.rawValue) {
+            VStack(spacing: 10) {
+                actionButton(slot: 0, action: first)
+                if let note {
+                    Text(note)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.inkDim)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.bottom, 14)
+        }
+    }
+
+    private func actionButton(slot: Int, action: Int) -> some View {
+        Button {
+            note = nil
+            switch UInt32(action) {
+            case R3_GUIDE_PLAY_DEMO.rawValue:
+                // Started as a guide session, so leaving it comes back here
+                // rather than dropping the user on the shelf mid-walkthrough.
+                engine.playDemo(fromGuide: true)
+                dismiss()
+            case R3_GUIDE_ADD_GAME.rawValue, R3_GUIDE_ADD_BIOS.rawValue:
+                importing = true
+            default:
+                break
+            }
+        } label: {
+            Text(label(slot: slot))
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(accent(step))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 13)
+                .background(accent(step).opacity(0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .strokeBorder(accent(step).opacity(0.45), lineWidth: 1))
+        }
+    }
+
+    private func label(slot: Int) -> String {
+        var buffer = [CChar](repeating: 0, count: 128)
+        _ = r3_guide_action_label(Int32(step), Int32(slot), &buffer, 128)
+        return String(cString: buffer)
+    }
+
     private var controls: some View {
         HStack {
             if step > 0 {
-                Button("Back") { withAnimation { step -= 1 } }
+                Button("Back") { note = nil; withAnimation { step -= 1 } }
                     .foregroundStyle(Theme.inkDim)
             }
             Spacer()
             Button(step == count - 1 ? "Start playing" : "Next") {
+                note = nil
                 if step == count - 1 { dismiss() } else { withAnimation { step += 1 } }
             }
             .font(.system(size: 17, weight: .semibold, design: .rounded))
