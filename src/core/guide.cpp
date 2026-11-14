@@ -5,6 +5,15 @@
 namespace retro3do {
 namespace {
 
+// The app's own spectrum, used as a sequence so the walkthrough warms from
+// pink through amber to cyan as it goes. Each step keeps its colour in every
+// front end, which is why the values live here and not in a stylesheet.
+constexpr unsigned kPink   = 0xFA4F78;
+constexpr unsigned kAmber  = 0xFD9E3D;
+constexpr unsigned kCyan   = 0x4FD1E8;
+constexpr unsigned kGreen  = 0x56C98D;
+constexpr unsigned kViolet = 0xA98BF5;
+
 // Written for somebody who has never used an emulator and does not know what a
 // BIOS is. Nothing here names a file format unless the user has to type one,
 // and no sentence explains the machine's internals for their own sake.
@@ -15,43 +24,84 @@ const GuideStep kSteps[] = {
         "Goldstar sold from 1993. The app is the machine; the discs are yours.\n\n"
         "It opens on a shelf. Everything you can play is a tile on it, and "
         "tapping a tile starts it. There is nothing else to learn, and there is "
-        "no account and no sign-in anywhere in the app."
+        "no account and no sign-in anywhere in the app.",
+        kGuideEverywhere, kPink
     },
     {
         "Start with the demo",
         "The first tile is a demonstration we wrote ourselves. It needs nothing "
         "from you: no disc, no system ROM, no setup.\n\n"
-        "Start it and you will see the machine test its own parts — the "
-        "processor, the video hardware, the sound chip and the controller — and "
+        "Start it and you will see the machine test its own parts \xE2\x80\x94 the "
+        "processor, the video hardware, the sound chip and the controller \xE2\x80\x94 and "
         "then let you move a marker around with the pad. It is the quickest way "
-        "to see whether everything is working."
+        "to see whether everything is working.",
+        kGuideEverywhere, kAmber
+    },
+
+    // ---- getting games in: one step each, and only one is ever shown -------
+
+    {
+        "Getting discs onto your iPhone",
+        "iOS keeps every app's files to itself, so a disc has to be brought in "
+        "rather than pointed at. That is what {ADD} is for.\n\n"
+        "Choose it and the iOS file picker opens on everything your phone can "
+        "reach \xE2\x80\x94 Downloads, iCloud Drive, a USB drive, anything in Files. Pick "
+        "a disc image and it is copied into the app.\n\n"
+        "Because it is a copy, it keeps working even if you later move or "
+        "delete the original. Add as many as you like; each one becomes a tile.",
+        kGuideIos, kCyan
     },
     {
-        "Add your own discs",
-        "Choose {ADD} and pick a disc image you already own. It can be anywhere "
-        "your device can reach.\n\n"
-        "The app works out what you gave it. A 3DO disc is added to the shelf "
-        "under its own name, taken from the disc itself rather than the file "
-        "name. Anything else is refused with one line saying so, and nothing is "
-        "changed."
+        "Choose the folder your games are in",
+        "Android keeps apps out of each other's files, so instead of hunting "
+        "for your discs one at a time, you point Retro-3DO at a single folder "
+        "and it is given access to that folder and nothing else.\n\n"
+        "Pick the folder your disc images are in \xE2\x80\x94 or the one above them, since "
+        "everything inside comes with it, subfolders included. Android will ask "
+        "you to confirm.\n\n"
+        "You only do this once: the permission is remembered between launches. "
+        "The app can never see anything outside the folder you chose, and it "
+        "copies nothing \xE2\x80\x94 your files stay where they are.",
+        kGuideAndroid, kCyan
     },
+    {
+        "Tell it where your games are",
+        "Point Retro-3DO at the folder your disc images are in and it reads "
+        "them where they sit, subfolders included. Nothing is copied and "
+        "nothing is moved.\n\n"
+        "You can change the folder later, or add discs one at a time with "
+        "{ADD} if you would rather not hand over a whole folder.",
+        kGuideDesktop, kCyan
+    },
+
     {
         "About the system ROM",
         "The demo plays without one, but a real 3DO game needs the console's "
         "own start-up software, which we are not allowed to include.\n\n"
-        "If you have it — most people take it from a console they own — add it "
-        "the same way you add a disc, with {ADD}. The app recognises it on "
-        "sight and remembers it. You only ever do this once, and until you do, "
-        "your discs will say they need it."
+        "If you have it \xE2\x80\x94 most people take it from a console they own \xE2\x80\x94 add it "
+        "the same way you added your discs. The app recognises it on sight and "
+        "remembers it. You only ever do this once, and until you do, your discs "
+        "will tell you they need it.",
+        kGuideEverywhere, kViolet
     },
     {
         "The controls",
         "The 3DO pad is drawn either side of the picture, never over it: the "
         "directional cross on one side, and A, B and C on the other.\n\n"
-        "P and X are the buttons marked P and X on the real pad — most games "
+        "P and X are the buttons marked P and X on the real pad \xE2\x80\x94 most games "
         "use P to pause and start. L and R are the shoulder buttons.\n\n"
         "Touch the picture to hide the controls and see the game on its own. "
-        "Touch it again to bring them back."
+        "Touch it again to bring them back.",
+        kGuideIos | kGuideAndroid, kGreen
+    },
+    {
+        "The controls",
+        "A game pad plugged in or paired is picked up automatically and mapped "
+        "to the 3DO pad: the stick or d-pad to the cross, and three face "
+        "buttons to A, B and C.\n\n"
+        "Without one, the keyboard stands in \xE2\x80\x94 the arrow keys steer, and Z, X "
+        "and C are A, B and C.",
+        kGuideDesktop, kGreen
     },
     {
         "Your games save themselves",
@@ -59,7 +109,8 @@ const GuideStep kSteps[] = {
         "does this. It is written whenever you stop playing or leave the app, "
         "so you will not lose a save by closing it.\n\n"
         "Saves belong to the machine, not to a disc, exactly as they did on the "
-        "real console."
+        "real console.",
+        kGuideEverywhere, kAmber
     },
     {
         "If something runs too fast",
@@ -67,15 +118,32 @@ const GuideStep kSteps[] = {
         "speed. If a game feels too fast or too slow, change the television "
         "setting from 60 Hz to 50 Hz.\n\n"
         "That is the only setting most people ever need. You can read this "
-        "guide again whenever you like — it is the first thing in Settings."
+        "guide again whenever you like \xE2\x80\x94 it is the first thing in Settings.",
+        kGuideEverywhere, kPink
     },
 };
 
+constexpr std::size_t kTotal = sizeof(kSteps) / sizeof(kSteps[0]);
+
 }  // namespace
 
-const GuideStep* guide_steps() { return kSteps; }
+std::size_t guide_step_count(unsigned platform) {
+    std::size_t n = 0;
+    for (std::size_t i = 0; i < kTotal; ++i) {
+        if ((kSteps[i].platforms & platform) != 0u) ++n;
+    }
+    return n;
+}
 
-std::size_t guide_step_count() { return sizeof(kSteps) / sizeof(kSteps[0]); }
+const GuideStep* guide_step(unsigned platform, std::size_t index) {
+    std::size_t n = 0;
+    for (std::size_t i = 0; i < kTotal; ++i) {
+        if ((kSteps[i].platforms & platform) == 0u) continue;
+        if (n == index) return &kSteps[i];
+        ++n;
+    }
+    return nullptr;
+}
 
 void guide_body(const char* body, const char* add_control, char* out, std::size_t out_len) {
     if (out == nullptr || out_len == 0) return;

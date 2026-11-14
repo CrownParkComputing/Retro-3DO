@@ -5,23 +5,37 @@
 // is told about this machine should not drift between platforms, and nobody
 // should have to find three copies of a sentence to fix a typo in it.
 //
-// What varies between platforms is how content is added, so the bodies carry
-// one token, {ADD}, which each front end replaces with the name of its own
-// control: "the + tile" on iOS, "Add disc" on the desktop.
+// Two things vary and are handled here rather than by each front end going its
+// own way. The name of the control that adds content appears in the text as a
+// {ADD} token. And getting games into the app is genuinely a different job on
+// each platform -- Android grants a folder, the desktop points at one, iOS
+// copies a file in -- so steps carry the platforms they belong to and the
+// others never see them.
 #pragma once
 
 #include <cstddef>
 
 namespace retro3do {
 
+enum GuidePlatform : unsigned {
+    kGuideIos        = 1u << 0,
+    kGuideAndroid    = 1u << 1,
+    kGuideDesktop    = 1u << 2,
+    kGuideEverywhere = kGuideIos | kGuideAndroid | kGuideDesktop,
+};
+
 struct GuideStep {
     const char* title;
     const char* body;
+    unsigned    platforms;
+    // 0xRRGGBB, carried here so a step is the same colour in every front end.
+    // Taken from the app's own spectrum rather than invented per platform.
+    unsigned    accent;
 };
 
-// Steps in the order a first-time user meets them.
-const GuideStep* guide_steps();
-std::size_t guide_step_count();
+// How many steps this platform shows, and the n-th of them.
+std::size_t guide_step_count(unsigned platform);
+const GuideStep* guide_step(unsigned platform, std::size_t index);
 
 // `body` with {ADD} replaced by `add_control`. The caller owns nothing; the
 // result is written into `out` and truncated rather than allocated, so this is

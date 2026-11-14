@@ -553,19 +553,28 @@ int r3_fps_x100(void) {
 
 // ===================================================================== guide ==
 // No Bridge state: the steps are compiled-in constants, so these work before
-// r3_start() and cannot fail.
+// r3_start() and cannot fail. Only the iOS steps are ever visible here --
+// pointing at a folder is not a thing iOS lets an app do, so the Android and
+// desktop versions of that step are filtered out before Swift sees them.
 
-int r3_guide_count(void) { return static_cast<int>(guide_step_count()); }
+int r3_guide_count(void) {
+    return static_cast<int>(guide_step_count(kGuideIos));
+}
 
 int r3_guide_title(int step, char* out, int out_len) {
-    if (step < 0 || step >= r3_guide_count()) return 0;
-    return copy_out(guide_steps()[step].title, out, out_len);
+    const GuideStep* s = guide_step(kGuideIos, static_cast<std::size_t>(step));
+    if (step < 0 || s == nullptr) return 0;
+    return copy_out(s->title, out, out_len);
 }
 
 int r3_guide_body(int step, const char* add_control, char* out, int out_len) {
-    if (step < 0 || step >= r3_guide_count()) return 0;
-    if (out == nullptr || out_len <= 0) return 0;
-    guide_body(guide_steps()[step].body, add_control, out,
-               static_cast<std::size_t>(out_len));
+    const GuideStep* s = guide_step(kGuideIos, static_cast<std::size_t>(step));
+    if (step < 0 || s == nullptr || out == nullptr || out_len <= 0) return 0;
+    guide_body(s->body, add_control, out, static_cast<std::size_t>(out_len));
     return static_cast<int>(std::strlen(out));
+}
+
+uint32_t r3_guide_accent(int step) {
+    const GuideStep* s = guide_step(kGuideIos, static_cast<std::size_t>(step));
+    return (step < 0 || s == nullptr) ? 0xFD9E3Du : s->accent;
 }

@@ -168,6 +168,11 @@ int main(int argc, char** argv) {
         r3_guide_body(i, "the + tile", body, sizeof body);
         if (title[0] == 0 || body[0] == 0) return fail("a guide step is empty");
         if (strstr(body, "{ADD}") != NULL) return fail("a guide step still has {ADD} in it");
+        if (r3_guide_accent(i) == 0) return fail("a guide step has no colour");
+        /* Pointing at a folder is not something iOS lets an app do, so those
+           steps must never reach the phone. */
+        if (strstr(body, "folder your disc images are in") != NULL)
+            return fail("a folder-permission step leaked into the iOS guide");
     }
     char body[2048];
     r3_guide_body(2, "the + tile", body, sizeof body);

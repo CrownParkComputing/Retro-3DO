@@ -15,6 +15,15 @@ struct GuideView: View {
 
     private var count: Int { Int(r3_guide_count()) }
 
+    /// The step's own colour, from the shared table beside the words, so a
+    /// step is the same colour here as it is on Android and the desktop.
+    private func accent(_ i: Int) -> Color {
+        let rgb = r3_guide_accent(Int32(i))
+        return Color(red: Double((rgb >> 16) & 0xFF) / 255,
+                     green: Double((rgb >> 8) & 0xFF) / 255,
+                     blue: Double(rgb & 0xFF) / 255)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             progress
@@ -23,6 +32,25 @@ struct GuideView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    // The mark, on the first step only. It is the app saying
+                    // hello; repeating it on all nine would be wallpaper.
+                    if step == 0 {
+                        Image("GuideMark")
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: 76, height: 76)
+                            .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 17, style: .continuous)
+                                    .strokeBorder(Theme.tileEdge, lineWidth: 1))
+                            .padding(.bottom, 2)
+                    }
+
+                    Text(stepNumber)
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .tracking(1.4)
+                        .foregroundStyle(accent(step))
+
                     Text(title(step))
                         .font(.system(size: 27, weight: .semibold, design: .rounded))
                         .foregroundStyle(Theme.ink)
@@ -53,7 +81,7 @@ struct GuideView: View {
         HStack(spacing: 5) {
             ForEach(0..<count, id: \.self) { i in
                 Capsule()
-                    .fill(i <= step ? AnyShapeStyle(Theme.spectrum)
+                    .fill(i <= step ? AnyShapeStyle(accent(i))
                                     : AnyShapeStyle(Theme.tileEdge))
                     .frame(height: 4)
             }
@@ -76,7 +104,7 @@ struct GuideView: View {
             .foregroundStyle(Color.black)
             .padding(.horizontal, 26)
             .padding(.vertical, 13)
-            .background(Theme.accent)
+            .background(accent(step))
             .clipShape(Capsule())
         }
         .overlay(alignment: .center) {
@@ -89,6 +117,8 @@ struct GuideView: View {
             }
         }
     }
+
+    private var stepNumber: String { "STEP \(step + 1) OF \(count)" }
 
     private func title(_ i: Int) -> String {
         var buffer = [CChar](repeating: 0, count: 256)

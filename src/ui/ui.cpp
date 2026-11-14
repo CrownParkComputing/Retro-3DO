@@ -1549,8 +1549,25 @@ void Ui::render(SDL_Renderer* renderer) {
 void Ui::draw_guide() {
     if (!guide_open_) return;
 
-    const int steps = static_cast<int>(guide_step_count());
+    // Android grants a folder and the desktop points at one; the platform
+    // decides which of those steps exists at all, so the count differs.
+#if defined(__ANDROID__)
+    const unsigned platform = kGuideAndroid;
+    const char* add_control = "Add disc";
+#else
+    const unsigned platform = kGuideDesktop;
+    const char* add_control = "Add disc";
+#endif
+    const int steps = static_cast<int>(guide_step_count(platform));
     if (guide_step_ < 0 || guide_step_ >= steps) { guide_open_ = false; return; }
+    const GuideStep* step = guide_step(platform, static_cast<std::size_t>(guide_step_));
+    if (step == nullptr) { guide_open_ = false; return; }
+
+    // The step's own colour, from the shared table, so the walkthrough looks
+    // the same here as it does on a phone.
+    const ImVec4 accent(static_cast<float>((step->accent >> 16) & 0xFF) / 255.0f,
+                        static_cast<float>((step->accent >> 8) & 0xFF) / 255.0f,
+                        static_cast<float>(step->accent & 0xFF) / 255.0f, 1.0f);
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -1572,10 +1589,29 @@ void Ui::draw_guide() {
                       ImGuiChildFlags_Borders);
     ImGui::PushTextWrapPos(0.0f);
 
-    ImGui::TextColored(kMuted, "STEP %d OF %d", guide_step_ + 1, steps);
+    // A row of bars rather than "3 of 9": it shows how much is left without
+    // asking anyone to count, and it is where the colour reads most clearly.
+    const float bar_w = (ImGui::GetContentRegionAvail().x -
+                         ImGui::GetStyle().ItemSpacing.x * (steps - 1)) / steps;
+    for (int i = 0; i < steps; ++i) {
+        if (i > 0) ImGui::SameLine();
+        const GuideStep* s_i = guide_step(platform, static_cast<std::size_t>(i));
+        ImVec4 c = kMuted;
+        if (s_i != nullptr && i <= guide_step_) {
+            c = ImVec4(static_cast<float>((s_i->accent >> 16) & 0xFF) / 255.0f,
+                       static_cast<float>((s_i->accent >> 8) & 0xFF) / 255.0f,
+                       static_cast<float>(s_i->accent & 0xFF) / 255.0f, 1.0f);
+        }
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, c);
+        ImGui::BeginChild(ImGui::GetID(static_cast<void*>(nullptr) + i + 1),
+                          ImVec2(bar_w, 4.0f * scale_));
+        ImGui::EndChild();
+        ImGui::PopStyleColor();
+    }
     ImGui::Spacing();
+    ImGui::TextColored(kMuted, "STEP %d OF %d", guide_step_ + 1, steps);
     ImGui::SetWindowFontScale(1.5f);
-    ImGui::TextUnformatted(guide_steps()[guide_step_].title);
+    ImGui::TextColored(accent, "%s", step->title);
     ImGui::SetWindowFontScale(1.0f);
     ImGui::Separator();
     ImGui::Spacing();
@@ -1583,7 +1619,7 @@ void Ui::draw_guide() {
     // "Add disc" rather than iOS's "+ tile": the shared text leaves a token so
     // each front end can name its own control.
     char body[4096];
-    guide_body(guide_steps()[guide_step_].body, "Add disc", body, sizeof body);
+    guide_body(step->body, add_control, body, sizeof body);
     // The wrap position has to be pushed INSIDE the child. BeginChild starts a
     // new window and the outer PushTextWrapPos does not reach into it, so the
     // text ran straight off the right edge and was clipped rather than wrapped.
@@ -1604,7 +1640,11 @@ void Ui::draw_guide() {
     }
     ImGui::SetCursorPosX(ImGui::GetWindowWidth() - button - ImGui::GetStyle().WindowPadding.x);
     const char* next = guide_step_ == steps - 1 ? "START PLAYING" : "NEXT";
-    if (ImGui::Button(next, ImVec2(button, 40.0f * scale_))) {
+    ImGui::PushStyleColor(ImGuiCol_Button, tinted(accent, 0.42f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, tinted(accent, 0.58f));
+    const bool advance = ImGui::Button(next, ImVec2(button, 40.0f * scale_));
+    ImGui::PopStyleColor(2);
+    if (advance) {
         if (guide_step_ == steps - 1) guide_open_ = false; else ++guide_step_;
     }
 

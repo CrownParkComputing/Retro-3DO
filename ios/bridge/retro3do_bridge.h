@@ -142,6 +142,10 @@ int r3_guide_count(void);
 int r3_guide_title(int step, char *out, int out_len);
 int r3_guide_body(int step, const char *add_control, char *out, int out_len);
 
+// 0xRRGGBB for the step. The colour lives beside the words so a step looks the
+// same in every version of the app rather than being restyled three times.
+uint32_t r3_guide_accent(int step);
+
 // --------------------------------------------------------------- diagnostics --
 
 // The last failure, phrased for a person rather than a log. Never NULL.
