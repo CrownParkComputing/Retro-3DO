@@ -44,22 +44,11 @@ jobs:
       - name: Build for the simulator
         run: TARGET=simulator ./ios/build-ios-macos.sh
 
-  # Boots a simulator, installs the app and photographs it.
-  #
-  # A build that compiles proves nothing about whether the app draws: this is
-  # the job that produces something a person can look at. simctl can boot,
-  # install and launch and nothing else -- there is no way to tap a tile from
-  # a script -- so the second shot is taken with -autoplay-demo, which the app
-  # honours only when that argument is passed.
+  # Exercise the native wizard and session transitions on both device families.
   screenshots:
     name: iOS simulator screenshots
     runs-on: macos-26
     timeout-minutes: 60
-    # Manual only. macOS runners bill at ten times the Linux rate and this job
-    # boots two simulators, so running it on every push was the expensive half
-    # of the pipeline for something nobody reads most pushes. Ask for it when
-    # the screens have actually changed:
-    #   gh workflow run ios.yml --ref ios-shelf -f screenshots=true
     if: github.ref == 'refs/heads/ios-shelf' || (github.event_name == 'workflow_dispatch' && inputs.screenshots)
     steps:
       - uses: actions/checkout@v5
@@ -69,97 +58,31 @@ jobs:
       - name: Build for the simulator
         run: TARGET=simulator ./ios/build-ios-macos.sh
 
-      - name: Photograph the app at App Store sizes
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install pinned simulator interaction tool
         run: |
-          set -euo pipefail
-          app=$(find ios/build -name 'Retro-3DO.app' -type d -print -quit)
-          [ -n "$app" ] || { echo "::error::no .app was built"; exit 1; }
-          mkdir -p shots
+          curl -fL --retry 3 https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.12.1/maestro.zip -o /tmp/maestro.zip
+          curl -fL --retry 3 https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.12.1/checksums_sha256.txt -o /tmp/maestro-checksums.txt
+          (cd /tmp && grep 'maestro.zip' maestro-checksums.txt | shasum -a 256 -c -)
+          unzip -q /tmp/maestro.zip -d "$RUNNER_TEMP/maestro"
+          echo "$RUNNER_TEMP/maestro/maestro/bin" >> "$GITHUB_PATH"
 
-          # Finds a simulator by name pattern, preferring one that already
-          # exists and creating one from a matching device type otherwise.
-          find_device() {
-            local pattern="$1" udid
-            udid=$(xcrun simctl list devices available \
-                   | awk -v p="$pattern" '$0 ~ p { print; exit }' \
-                   | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}' | head -1)
-            if [ -z "$udid" ]; then
-              local type
-              type=$(xcrun simctl list devicetypes \
-                     | awk -v p="$pattern" '$0 ~ p { print; exit }' \
-                     | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*' | head -1)
-              [ -n "$type" ] || return 1
-              udid=$(xcrun simctl create "shots-$$" "$type")
-            fi
-            echo "$udid"
-          }
-
-          # $1 pattern  $2 file prefix  $3 required landscape size WxH
-          #   $4 rotation in degrees clockwise
-          #
-          # The rotation differs per device and is not guessable: the app is
-          # landscape-only, but simctl captures the device in its physical
-          # orientation and iOS does not pick the same landscape on both. The
-          # iPhone comes out needing 270 and the iPad 90 -- checked by eye on
-          # the artifacts, because a sideways screenshot is still exactly the
-          # right number of pixels and passes every automatic check there is.
-          capture() {
-            local udid; udid=$(find_device "$1") || {
-              echo "::error::no simulator matching $1"; exit 1; }
-            echo "== $2 on $udid"
-            xcrun simctl boot "$udid" >/dev/null 2>&1 || true
-            xcrun simctl bootstatus "$udid" -b
-            xcrun simctl install "$udid" "$app"
-
-            local n
-            for n in 1 2 3 4; do
-              if [ "$n" = 1 ]; then
-                xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO -capture-shelf
-                sleep 9; local name="$2-1-shelf"
-              elif [ "$n" = 2 ]; then
-                xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO -capture-guide
-                sleep 5; local name="$2-2-guide"
-              elif [ "$n" = 3 ]; then
-                xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO -capture-guide -capture-pad-layout
-                sleep 5; local name="$2-3-controls"
-              else
-                xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO -autoplay-demo
-                sleep 13; local name="$2-4-demo"
-              fi
-              xcrun simctl io "$udid" screenshot "shots/$name-raw.png"
-              xcrun simctl terminate "$udid" com.crownparkcomputing.retro3DO || true
-
-              sips -r "$4" "shots/$name-raw.png" --out "shots/$name.png" >/dev/null
-              rm -f "shots/$name-raw.png"
-
-              local got
-              got=$(sips -g pixelWidth -g pixelHeight "shots/$name.png" \
-                    | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{print w"x"h}')
-              echo "   $name $got"
-              # The whole point of naming the device is the size it produces.
-              # A silent fallback to the wrong device yields screenshots App
-              # Store Connect rejects, long after this job is green.
-              [ "$got" = "$3" ] || { echo "::error::$name is $got, need $3"; exit 1; }
-            done
-            xcrun simctl shutdown "$udid" || true
-          }
-
-          capture 'iPhone 1[6-9] Pro Max' iphone-6.9in 2868x1320 270
-          capture 'iPad Pro 13-inch'      ipad-13in   2752x2064 90
-
-          mkdir -p shots/crashes
-          cp ~/Library/Logs/DiagnosticReports/*Retro* shots/crashes/ 2>/dev/null || true
-          if [ -n "$(ls -A shots/crashes 2>/dev/null)" ]; then
-            echo "::warning::the app left a crash report"
-            head -40 shots/crashes/* || true
-          fi
-          ls -la shots
+      - name: Test iPhone and iPad flows and capture actual device orientation
+        env:
+          MAESTRO_CLI_NO_ANALYTICS: 'true'
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '180000'
+        run: ./ios/test-simulators.sh
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: retro3do-screenshots
           path: shots
+          if-no-files-found: error
 
   # Signed device build, archived and uploaded to App Store Connect.
   #

@@ -1,0 +1,32 @@
+appId: com.crownparkcomputing.retro3DO
+---
+- launchApp:
+    clearState: true
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible: "Welcome to Retro-3DO"
+- takeScreenshot: 02-guide
+- repeat:
+    times: 4
+    commands:
+      - tapOn: "Next"
+- assertVisible: "Arrange my controls"
+- tapOn: "Arrange my controls"
+- assertVisible: "Drag the controls"
+- swipe:
+    from:
+      id: pad-actions-handle
+    direction: LEFT
+    duration: 600
+- tapOn: "Done"
+- assertVisible: "Put the controls where you want them"
+- tapOn: "Skip"
+- assertVisible: "Play the demo"
+- assertVisible: "Add a disc or system ROM"
+- takeScreenshot: 01-library
+- launchApp
+- assertVisible: "Play the demo"
+- assertNotVisible: "Welcome to Retro-3DO"
+- tapOn: "Settings"
+- tapOn: "Arrange my controls"
+- assertVisible: "Drag the controls"
+- takeScreenshot: layout-after-relaunch

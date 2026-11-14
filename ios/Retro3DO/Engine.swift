@@ -25,6 +25,7 @@ final class Engine: ObservableObject {
     /// instead: somebody being walked through the app should not be dropped
     /// somewhere else halfway through a sentence.
     @Published var startedFromGuide = false
+    @Published var reopenGuide = false
 
     private var started = false
 

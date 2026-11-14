@@ -8,7 +8,8 @@ import SwiftUI
 struct GuideView: View {
     @EnvironmentObject private var engine: Engine
     @Environment(\.dismiss) private var dismiss
-    @State private var step = 0
+    @Binding var step: Int
+    var playDemo: () -> Void
     @State private var importing = false
     @State private var editingControls = false
     @State private var note: String?
@@ -140,8 +141,7 @@ struct GuideView: View {
             case R3_GUIDE_PLAY_DEMO:
                 // Started as a guide session, so leaving it comes back here
                 // rather than dropping the user on the shelf mid-walkthrough.
-                engine.playDemo(fromGuide: true)
-                dismiss()
+                playDemo()
             case R3_GUIDE_ADD_GAME, R3_GUIDE_ADD_BIOS:
                 importing = true
             case R3_GUIDE_EDIT_LAYOUT:

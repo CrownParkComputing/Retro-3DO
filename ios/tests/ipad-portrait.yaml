@@ -1,0 +1,16 @@
+appId: com.crownparkcomputing.retro3DO
+---
+- setOrientation: PORTRAIT
+- tapOn: "Settings"
+- tapOn: "Arrange my controls"
+- assertVisible: "Drag the controls"
+- takeScreenshot: 05-portrait-controls
+- tapOn: "Done"
+- tapOn: "Done"
+- tapOn: "Play the demo"
+- assertVisible:
+    id: emulator-screen
+- takeScreenshot: 06-portrait-demo
+- tapOn: "Session menu"
+- tapOn: "Back to the shelf"
+- assertVisible: "Play the demo"

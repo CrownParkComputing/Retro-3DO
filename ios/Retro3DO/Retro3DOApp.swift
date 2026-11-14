@@ -47,7 +47,12 @@ struct RootView: View {
         Shelf()
             .fullScreenCover(isPresented: Binding(
                 get: { engine.playing },
-                set: { if !$0 { engine.stop() } })) {
+                set: { if !$0 { engine.stop() } }), onDismiss: {
+                if engine.startedFromGuide {
+                    engine.startedFromGuide = false
+                    engine.reopenGuide = true
+                }
+            }) {
                 Session()
                     .environmentObject(engine)
             }

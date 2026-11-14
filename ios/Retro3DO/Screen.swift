@@ -19,6 +19,9 @@ struct Screen: UIViewRepresentable {
         view.preferredFramesPerSecond = 60
         view.enableSetNeedsDisplay = false
         view.isPaused = false
+        view.isAccessibilityElement = true
+        view.accessibilityIdentifier = "emulator-screen"
+        view.accessibilityLabel = "3DO screen"
         return view
     }
 

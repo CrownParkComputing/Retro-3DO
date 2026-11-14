@@ -93,6 +93,7 @@ struct PadOverlay: View {
                         .onChanged { layout.move(name, to: $0.location, size: size, bounds: bounds) }
                         .onEnded { _ in layout.save() })
                     .accessibilityLabel(name == "directions" ? "Move directional controls" : "Move action buttons")
+                    .accessibilityIdentifier("pad-\(name)-handle")
             } else {
                 content()
             }

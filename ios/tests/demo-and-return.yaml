@@ -1,0 +1,32 @@
+appId: com.crownparkcomputing.retro3DO
+---
+- assertVisible: "Drag the controls"
+- tapOn: "Reset"
+- takeScreenshot: 03-controls
+- tapOn: "Done"
+- tapOn: "Done"
+- tapOn: "Play the demo"
+- assertVisible:
+    id: emulator-screen
+- takeScreenshot: 04-demo
+- tapOn: "Button A"
+- tapOn: "Session menu"
+- assertVisible: "Keep playing"
+- tapOn: "Keep playing"
+- assertVisible:
+    id: emulator-screen
+- tapOn: "Session menu"
+- tapOn: "Back to the shelf"
+- assertVisible: "Play the demo"
+- tapOn: "Settings"
+- tapOn: "How Retro-3DO works"
+- assertVisible: "Welcome to Retro-3DO"
+- tapOn: "Next"
+- tapOn: "Play the demo now"
+- assertVisible:
+    id: emulator-screen
+- tapOn: "Session menu"
+- tapOn: "Back to the guide"
+- assertVisible: "Start with the demo"
+- tapOn: "Skip"
+- assertVisible: "Play the demo"

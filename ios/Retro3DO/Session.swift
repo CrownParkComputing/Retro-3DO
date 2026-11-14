@@ -62,7 +62,7 @@ struct Session: View {
                                 .foregroundStyle(Theme.ink.opacity(0.85))
                                 .padding(12)
                         }
-                        .accessibilityLabel("Back to the shelf")
+                        .accessibilityLabel("Session menu")
                         Spacer()
                     }
                     Spacer()

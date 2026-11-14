@@ -12,6 +12,9 @@ struct Shelf: View {
     @State private var note: String?
     @State private var confirmingRemoval: Engine.Disc?
     @State private var showingGuide = false
+    @State private var guideStep = 0
+    @State private var guideAfterSettings = false
+    @State private var demoAfterGuide = false
     // The only thing the app remembers about the person using it.
     @AppStorage("hasSeenGuide") private var hasSeenGuide = false
 
@@ -26,6 +29,7 @@ struct Shelf: View {
 
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 22) {
+                        DemoTile { engine.playDemo() }
                         ForEach(engine.discs) { disc in
                             DiscTile(disc: disc)
                                 .onTapGesture { engine.play(disc) }
@@ -58,22 +62,37 @@ struct Shelf: View {
             }
             .ignoresSafeArea()
         }
-        .sheet(isPresented: $showingSettings) {
-            SettingsSheet(showGuide: { showingSettings = false; showingGuide = true })
+        .sheet(isPresented: $showingSettings, onDismiss: {
+            if guideAfterSettings {
+                guideAfterSettings = false
+                guideStep = 0
+                showingGuide = true
+            }
+        }) {
+            SettingsSheet(showGuide: { guideAfterSettings = true; showingSettings = false })
                 .environmentObject(engine)
         }
-        .sheet(isPresented: $showingGuide) { GuideView().environmentObject(engine) }
-        .onChange(of: engine.playing) { playing in
-            // Coming out of a session the walkthrough started puts the user
-            // back in the walkthrough rather than on a shelf they have not
-            // been introduced to yet.
-            if !playing && engine.startedFromGuide {
-                engine.startedFromGuide = false
+        .sheet(isPresented: $showingGuide, onDismiss: {
+            // Start the session after its presenting sheet has gone away.
+            if demoAfterGuide {
+                demoAfterGuide = false
+                engine.playDemo(fromGuide: true)
+            }
+        }) {
+            GuideView(step: $guideStep, playDemo: {
+                demoAfterGuide = true
+                showingGuide = false
+            }).environmentObject(engine)
+        }
+        .onChange(of: engine.reopenGuide) { requested in
+            if requested {
+                engine.reopenGuide = false
                 showingGuide = true
             }
         }
         .task {
             if CommandLine.arguments.contains("-capture-shelf") { return }
+            if CommandLine.arguments.contains("-autoplay-demo") { return }
             if CommandLine.arguments.contains("-capture-guide") {
                 showingGuide = true
                 return
@@ -163,6 +182,31 @@ private struct DiscTile: View {
         }
         .contentShape(Rectangle())
         .accessibilityLabel("Play \(disc.name)")
+    }
+}
+
+private struct DemoTile: View {
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            TileShape {
+                VStack(spacing: 10) {
+                    Image(systemName: "gamecontroller.fill")
+                        .font(.system(size: 42))
+                        .foregroundStyle(Theme.spectrum)
+                    Text("Try the demo")
+                        .font(.system(size: 19, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.ink)
+                    Text("No disc or system ROM needed")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.inkDim)
+                }
+                .padding(12)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Play the demo")
     }
 }
 
