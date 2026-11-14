@@ -27,10 +27,17 @@ struct Session: View {
             // height. Measuring the container and saying the sizes out loud
             // removes the question.
             GeometryReader { geo in
-                let side = min(190, geo.size.width * 0.22)
+                // The columns are the letterbox, not a fixed width. A 4:3
+                // picture at full height leaves (width - height * 4/3) / 2 on
+                // each side and nothing else is doing anything with it, so the
+                // controls take exactly that and the picture keeps its full
+                // height. A fixed 190pt was costing 13% of the screen: the
+                // picture measured 1259px across where 1608 was available.
+                let margin = (geo.size.width - geo.size.height * 4.0 / 3.0) / 2
+                let side = max(120, min(190, margin))
                 HStack(spacing: 0) {
                     if controlsVisible {
-                        Pad.Directions(mask: $mask)
+                        Pad.Directions(mask: $mask, unit: side)
                             .frame(width: side, height: geo.size.height)
                             .transition(.opacity)
                     }
@@ -41,7 +48,7 @@ struct Session: View {
                             withAnimation(.easeInOut(duration: 0.2)) { controlsVisible.toggle() }
                         }
                     if controlsVisible {
-                        Pad.Actions(mask: $mask)
+                        Pad.Actions(mask: $mask, unit: side)
                             .frame(width: side, height: geo.size.height)
                             .transition(.opacity)
                     }

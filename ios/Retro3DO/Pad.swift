@@ -13,28 +13,38 @@ struct Pad {
     // the game, and on a phone there is no margin to overlay into.
     struct Directions: View {
         @Binding var mask: UInt32
-        var body: some View { Pad(mask: $mask).dpad }
+        /// The column's width. Everything is drawn relative to it, so the
+        /// controls fit whatever margin the picture leaves rather than forcing
+        /// the picture to shrink around a fixed 190pt.
+        var unit: CGFloat
+        var body: some View { Pad(mask: $mask).dpad(unit) }
     }
 
     struct Actions: View {
         @Binding var mask: UInt32
+        var unit: CGFloat
         private var pad: Pad { Pad(mask: $mask) }
+
         var body: some View {
-            // Two rows of two rather than one row of three: three 68pt circles
-            // side by side are wider than the margin beside a 4:3 picture.
-            VStack(spacing: 14) {
-                HStack(spacing: 10) {
-                    pad.small("L", R3_PAD_LEFT_SHIFT)
-                    pad.small("R", R3_PAD_RIGHT_SHIFT)
+            // Stacked rather than spread out: the widest row here is two face
+            // buttons, so the cluster fits a column as narrow as the letterbox
+            // beside a 4:3 picture. Nothing drops below 40pt, which is the
+            // smallest a finger should be asked to find.
+            let face = max(44, unit * 0.40)
+            let small = max(40, unit * 0.29)
+            VStack(spacing: unit * 0.08) {
+                HStack(spacing: unit * 0.06) {
+                    pad.small("L", R3_PAD_LEFT_SHIFT, small)
+                    pad.small("R", R3_PAD_RIGHT_SHIFT, small)
                 }
-                HStack(spacing: 14) {
-                    pad.face("C", R3_PAD_C)
-                    pad.face("B", R3_PAD_B)
+                HStack(spacing: unit * 0.07) {
+                    pad.face("C", R3_PAD_C, face)
+                    pad.face("B", R3_PAD_B, face)
                 }
-                HStack(spacing: 14) {
-                    pad.small("P", R3_PAD_PLAY)
-                    pad.face("A", R3_PAD_A)
-                    pad.small("X", R3_PAD_STOP)
+                pad.face("A", R3_PAD_A, face)
+                HStack(spacing: unit * 0.06) {
+                    pad.small("P", R3_PAD_PLAY, small)
+                    pad.small("X", R3_PAD_STOP, small)
                 }
             }
         }
@@ -44,11 +54,12 @@ struct Pad {
 
     // A cross, not four separate buttons: a finger between up and left should
     // give both, which is how anything with a diagonal is actually played.
-    var dpad: some View {
-        ZStack {
+    func dpad(_ unit: CGFloat) -> some View {
+        let d = max(120, unit * 0.95)
+        return ZStack {
             Circle()
                 .fill(Theme.tile.opacity(0.55))
-                .frame(width: 168, height: 168)
+                .frame(width: d, height: d)
                 .overlay(Circle().strokeBorder(Theme.tileEdge.opacity(0.7), lineWidth: 1))
             ForEach(Array(["chevron.up": R3_PAD_UP,
                            "chevron.down": R3_PAD_DOWN,
@@ -58,17 +69,17 @@ struct Pad {
                 Image(systemName: symbol)
                     .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(held(bit) ? Theme.accent : Theme.inkDim)
-                    .offset(offset(for: symbol))
+                    .offset(offset(for: symbol, d))
             }
         }
-        .frame(width: 168, height: 168)
+        .frame(width: d, height: d)
         .contentShape(Circle())
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
-                    let dx = value.location.x - 84
-                    let dy = value.location.y - 84
-                    let dead: CGFloat = 22
+                    let dx = value.location.x - d / 2
+                    let dy = value.location.y - d / 2
+                    let dead = d * 0.13
                     var next = mask & ~(R3_PAD_UP | R3_PAD_DOWN | R3_PAD_LEFT | R3_PAD_RIGHT)
                     if dy < -dead { next |= R3_PAD_UP }
                     if dy >  dead { next |= R3_PAD_DOWN }
@@ -81,21 +92,22 @@ struct Pad {
                 })
     }
 
-    private func offset(for symbol: String) -> CGSize {
+    private func offset(for symbol: String, _ d: CGFloat) -> CGSize {
+        let r = d * 0.31
         switch symbol {
-        case "chevron.up":    return CGSize(width: 0, height: -52)
-        case "chevron.down":  return CGSize(width: 0, height: 52)
-        case "chevron.left":  return CGSize(width: -52, height: 0)
-        default:              return CGSize(width: 52, height: 0)
+        case "chevron.up":    return CGSize(width: 0, height: -r)
+        case "chevron.down":  return CGSize(width: 0, height: r)
+        case "chevron.left":  return CGSize(width: -r, height: 0)
+        default:              return CGSize(width: r, height: 0)
         }
     }
 
-    func face(_ label: String, _ bit: UInt32) -> some View {
-        button(label, bit, size: 68, font: 24)
+    func face(_ label: String, _ bit: UInt32, _ size: CGFloat) -> some View {
+        button(label, bit, size: size, font: size * 0.35)
     }
 
-    func small(_ label: String, _ bit: UInt32) -> some View {
-        button(label, bit, size: 44, font: 15)
+    func small(_ label: String, _ bit: UInt32, _ size: CGFloat) -> some View {
+        button(label, bit, size: size, font: size * 0.34)
     }
 
     private func button(_ label: String, _ bit: UInt32,
