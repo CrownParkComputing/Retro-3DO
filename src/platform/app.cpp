@@ -5,16 +5,18 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
-#include <unistd.h>
 
 #include "core/console.h"
+#include "core/covers.h"
 #include "core/frame_mailbox.h"
 #include "core/pad.h"
 #include "core/settings.h"
 #include "platform/android_storage.h"
 #include "platform/platform.h"
 #include "platform/storage.h"
+#include "platform/save_memory.h"
 #include "ui/touch_pad.h"
+#include "ui/library_scan.h"
 #include "platform/emulator_thread.h"
 #include "ui/ui.h"
 
@@ -30,11 +32,6 @@ extern "C" bool retro3do_configure_vulkan_driver(
 constexpr int kDefaultWindowWidth  = 1280;
 constexpr int kDefaultWindowHeight = 720;
 
-// One NVRAM, shared by every title, exactly as a console has one. Keeping a
-// separate image per disc would be tidier to reason about, but it is not what
-// the hardware does and it would break the titles that read each other's saves.
-constexpr const char* kNvramFile = "nvram.bin";
-
 std::string library_key(int index, const std::string& field) {
     return "library." + std::to_string(index) + "." + field;
 }
@@ -46,29 +43,8 @@ std::string lowercased(std::string text) {
     return text;
 }
 
-bool has_disc_extension(const std::string& name) {
-    const std::string lower = lowercased(name);
-    static constexpr const char* kExtensions[] = {
-        ".chd", ".iso", ".bin", ".cue", ".img"
-    };
-    for (const char* extension : kExtensions) {
-        const size_t length = std::char_traits<char>::length(extension);
-        if (lower.size() > length &&
-            lower.compare(lower.size() - length, length, extension) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool has_bios_extension(const std::string& name, bool allow_bin) {
-    const std::string lower = lowercased(name);
-    if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".rom") == 0) {
-        return true;
-    }
-    return allow_bin && lower.size() > 4 &&
-           lower.compare(lower.size() - 4, 4, ".bin") == 0;
-}
+std::vector<DocumentEntry> list_folder(const std::string& folder);
+bool is_system_rom(const std::string& target);
 
 }  // namespace
 
@@ -86,6 +62,7 @@ App::~App() {
     // Last chance to write out a save the user made just before quitting.
     if (emulator_) {
         emulator_->stop();
+        nvram_retry_after_ms_ = 0;
         save_nvram();
     }
     emulator_.reset();
@@ -279,6 +256,8 @@ bool App::init() {
 
     emulator_->set_paused(!start_on_launch_);
     emulating_ = start_on_launch_;
+    ui_->set_game_session_available(start_on_launch_ && console_->disc_loaded() &&
+        console_->bios_loaded() && !console_->demo_loaded());
     if (start_on_launch_) {
         ui_->hide_launcher();
     }
@@ -570,21 +549,30 @@ bool App::open_bios(const std::string& path, const std::string& name) {
     // here instead of a document URI, and that is invisible without seeing the
     // actual string.
     SDL_Log("open BIOS: %s", path.c_str());
-    if (AndroidStorage::available()) {
-        return console_->load_bios_fd(AndroidStorage::open_document(path),
-                                      name.empty() ? path : name);
+    const bool loaded = AndroidStorage::available()
+        ? console_->load_bios_fd(AndroidStorage::open_document(path),
+                                 name.empty() ? path : name)
+        : console_->load_bios(path);
+    if (loaded) {
+        ui_->set_remembered_bios(name, path);
+        ui_->set_game_session_available(false);
     }
-    return console_->load_bios(path);
+    return loaded;
 }
 
 bool App::open_disc(const std::string& path, const std::string& name) {
     if (path.empty()) return false;
-    SDL_Log("open disc: %s", path.c_str());
-    if (AndroidStorage::available()) {
-        return console_->load_disc_fd(AndroidStorage::open_document(path),
-                                      name.empty() ? path : name);
+    if (Storage::is_system_rom(path)) {
+        SDL_Log("Refusing to insert a BIOS as a game: %s", path.c_str());
+        return false;
     }
-    return console_->load_disc(path);
+    SDL_Log("open disc: %s", path.c_str());
+    const bool loaded = AndroidStorage::available()
+        ? console_->load_disc_fd(AndroidStorage::open_document(path),
+                                 name.empty() ? path : name)
+        : console_->load_disc(path);
+    if (loaded) ui_->set_remembered_disc(name, path);
+    return loaded;
 }
 
 // ---------------------------------------------------------------------------
@@ -604,26 +592,46 @@ void App::set_launch_files(std::string bios, std::string disc) {
 // it would offer to reformat it, which would lose everything.
 void App::load_nvram() {
     if (!console_) return;
-    const std::string path = Storage::join(Storage::writable_directory(), kNvramFile);
-    size_t size = 0;
-    void* data = SDL_LoadFile(path.c_str(), &size);
-    if (data == nullptr) {
+    if (!save_memory_) save_memory_ = std::make_unique<SaveMemory>(
+        console_->bus().nvram_size(), Storage::writable_directory());
+    if (!save_memory_->configure(settings_->get(settings_key::kGamesFolderPath))) {
+        SDL_Log("Library saves folder unavailable; keeping RAM in app storage");
+    }
+    // A failed write during a library change must not replace newer in-memory
+    // RAM with an older private checkpoint in an empty destination folder.
+    const auto result = !save_memory_->has_image() && nvram_unsaved_ &&
+        nvram_scratch_.size() == console_->bus().nvram_size()
+        ? SaveMemory::LoadResult::Loaded : save_memory_->load(nvram_scratch_);
+    if (result == SaveMemory::LoadResult::Loaded) {
+        emulator_->restore_nvram(nvram_scratch_);
+    } else if (result == SaveMemory::LoadResult::Missing) {
+        emulator_->snapshot_nvram(nvram_scratch_);
+    } else {
+        SDL_Log("Saved RAM has an invalid size or cannot be read; preserving the file");
         return;
     }
-    console_->bus().restore_nvram(static_cast<const u8*>(data), size);
-    SDL_free(data);
+    nvram_unsaved_ = false;
+    nvram_retry_after_ms_ = 0;
+    if (!save_memory_->has_image()) {
+        nvram_unsaved_ = !save_memory_->save(nvram_scratch_);
+    }
+    SDL_Log("3DO save RAM: %s", save_memory_->directory().c_str());
 }
 
 // Called every turn of the display loop. It costs a lock and a bool nearly
 // every time: the machine only writes the NVRAM when the user saves, so the
 // file is only touched then too.
 void App::save_nvram() {
-    if (!emulator_) return;
-    if (!emulator_->take_nvram(nvram_scratch_)) {
-        return;
+    if (!emulator_ || !save_memory_) return;
+    if (emulator_->take_nvram(nvram_scratch_)) nvram_unsaved_ = true;
+    if (!nvram_unsaved_ || SDL_GetTicks() < nvram_retry_after_ms_) return;
+    if (save_memory_->save(nvram_scratch_)) {
+        nvram_unsaved_ = false;
+        nvram_retry_after_ms_ = 0;
+    } else {
+        nvram_retry_after_ms_ = SDL_GetTicks() + 1000;
+        SDL_Log("Could not write save RAM; retaining it for retry");
     }
-    const std::string path = Storage::join(Storage::writable_directory(), kNvramFile);
-    SDL_SaveFile(path.c_str(), nvram_scratch_.data(), nvram_scratch_.size());
 }
 
 void App::load_settings() {
@@ -704,14 +712,15 @@ void App::load_settings() {
         if (!open_disc(disc, disc_name)) {
             settings_->remove(settings_key::kDiscPath);
             settings_->remove(settings_key::kDiscName);
+            ui_->set_remembered_disc("", "");
         } else {
             // Android's configured games folder owns its library. Desktop has
             // no SAF setup, so direct opens remain its way to populate cards.
             if (!AndroidStorage::available()) remember_game(disc_name, disc);
         }
     }
-    if (AndroidStorage::available() && library_.games().empty() &&
-        !games_folder.empty()) {
+    if (!games_folder.empty() &&
+        (AndroidStorage::available() || Storage::is_directory(games_folder))) {
         scan_games_folder(settings_->get(settings_key::kGamesFolderName),
                           games_folder);
     }
@@ -744,6 +753,10 @@ void App::load_library() {
         }
     }
     library_.replace(games);
+    // Covers are matched on every restore rather than persisted: the folder is
+    // the truth, so a picture dropped in since last launch appears and one
+    // deleted stops appearing, with nothing stale to clear.
+    match_covers(settings_->get(settings_key::kGamesFolderPath));
     ui_->set_game_library(library_.games());
 }
 
@@ -796,21 +809,13 @@ void App::use_bios_folder(const std::string& name, const std::string& target) {
     settings_->set(settings_key::kBiosFolderPath, target);
     settings_->set(settings_key::kBiosFolderName, name);
 
-    // A firmware folder commonly contains several regional and arcade ROMs.
-    // Keep the already-working choice when it is in this folder; on a first
-    // install prefer the well-supported retail Panasonic images.
-    std::vector<DocumentEntry> candidates;
-    std::vector<std::pair<std::string, int>> pending{{target, 0}};
-    for (size_t cursor = 0; cursor < pending.size() && cursor < 256; ++cursor) {
-        const auto [folder, depth] = pending[cursor];
-        for (const DocumentEntry& entry : AndroidStorage::list(folder)) {
-            if (entry.is_directory && depth < 6) {
-                pending.emplace_back(entry.uri, depth + 1);
-            } else if (!entry.is_directory) {
-                if (has_bios_extension(entry.name, true)) candidates.push_back(entry);
-            }
-        }
-    }
+    ui_->set_bios_folder(name, target);
+    adopt_bios(scan_library_folder(target, list_folder, is_system_rom).bios);
+    save_settings();
+}
+
+void App::adopt_bios(std::vector<DocumentEntry> candidates) {
+    // Prefer a remembered retail image, then the Panasonic system ROMs.
     const std::string remembered = settings_->get(settings_key::kBiosPath);
     auto preference = [&](const DocumentEntry& entry) {
         const std::string lower = lowercased(entry.name);
@@ -830,15 +835,21 @@ void App::use_bios_folder(const std::string& name, const std::string& target) {
                      [&](const DocumentEntry& a, const DocumentEntry& b) {
                          return preference(a) < preference(b);
                      });
+    const bool was_demo = console_->demo_loaded();
+    emulator_->set_paused(true);
     for (const DocumentEntry& candidate : candidates) {
         if (!open_bios(candidate.uri, candidate.name)) continue;
+        if (was_demo) {
+            console_->reset();
+            emulating_ = false;
+        }
         settings_->set(settings_key::kBiosPath, candidate.uri);
         settings_->set(settings_key::kBiosName, candidate.name);
         ui_->set_remembered_bios(candidate.name, candidate.uri);
         SDL_Log("BIOS found by setup: %s", candidate.name.c_str());
         break;
     }
-    save_settings();
+    emulator_->set_paused(!emulating_);
 }
 
 namespace {
@@ -850,19 +861,8 @@ namespace {
 // The first 32 bytes of a file, however this platform hands files out. Enough
 // to recognise an ARM exception vector table and nothing more; reading a whole
 // candidate to decide it is not a ROM would be silly on a folder of CHDs.
-bool read_head(const std::string& target, u8* head, std::size_t len) {
-    if (AndroidStorage::available()) {
-        const int fd = AndroidStorage::open_document(target);
-        if (fd < 0) return false;
-        const ssize_t got = ::read(fd, head, len);
-        ::close(fd);
-        return got == static_cast<ssize_t>(len);
-    }
-    std::FILE* file = std::fopen(target.c_str(), "rb");
-    if (file == nullptr) return false;
-    const size_t got = std::fread(head, 1, len, file);
-    std::fclose(file);
-    return got == len;
+bool is_system_rom(const std::string& target) {
+    return Storage::is_system_rom(target);
 }
 
 std::vector<DocumentEntry> list_folder(const std::string& folder) {
@@ -890,72 +890,86 @@ std::vector<DocumentEntry> list_folder(const std::string& folder) {
 
 }  // namespace
 
+// Artwork the user supplied, matched to the games already in the library.
+// Looked for in a Covers folder beside the games and, failing that, among the
+// games themselves, because plenty of people keep the picture next to the
+// disc. No network and no service: see src/core/covers.h for why.
+//
+// Run on a restore as well as a scan, because covers are not persisted: the
+// folder is the truth, so a picture dropped in since last launch appears and
+// one deleted stops appearing, with nothing to go stale.
+void App::match_covers(const std::string& games_folder) {
+    if (games_folder.empty() || library_.games().empty()) {
+        SDL_Log("Covers: nothing to match (folder '%s', %zu game(s))",
+                games_folder.c_str(), library_.games().size());
+        return;
+    }
+    for (const char* where : {"Covers", "covers", ""}) {
+        const std::string folder =
+            *where == '\0' ? games_folder : Storage::join(games_folder, where);
+        std::vector<std::string> art;
+        for (const DocumentEntry& entry : list_folder(folder)) {
+            if (!entry.is_directory) art.push_back(entry.name);
+        }
+        if (art.empty()) continue;
+
+        std::vector<LibraryGame> games = library_.games();
+        size_t matched = 0;
+        for (LibraryGame& game : games) {
+            const std::string file = match_cover(game.name, art);
+            if (file.empty()) continue;
+            game.cover = Storage::join(folder, file);
+            ++matched;
+        }
+        if (matched > 0) {
+            library_.replace(games);
+            SDL_Log("Matched %zu cover(s) from %s", matched, folder.c_str());
+            return;
+        }
+    }
+}
+
 void App::scan_games_folder(const std::string& name, const std::string& target) {
     if (target.empty()) return;
+    const bool changing_saves = save_memory_ &&
+        settings_->get(settings_key::kGamesFolderPath) != target;
+    const bool was_paused = emulator_->paused();
+    if (changing_saves) {
+        emulator_->set_paused(true);
+        emulator_->snapshot_nvram(nvram_scratch_);
+        nvram_unsaved_ = true;
+        nvram_retry_after_ms_ = 0;
+        save_nvram();
+    }
     settings_->set(settings_key::kGamesFolderPath, target);
     settings_->set(settings_key::kGamesFolderName, name);
 
-    // The selected folder is authoritative. Rebuilding means deleted or moved
-    // images disappear instead of leaving dead cards behind.
+    ui_->set_games_folder(name, target);
+    const LibraryScan scan = scan_library_folder(target, list_folder, is_system_rom);
     library_.replace({});
-    std::vector<std::pair<std::string, int>> pending{{target, 0}};
-    size_t added = 0;
-    std::string bios_candidate;
-    std::string bios_candidate_name;
-    for (size_t cursor = 0; cursor < pending.size() && cursor < 1024 && added < 2048;
-         ++cursor) {
-        const auto [folder, depth] = pending[cursor];
-        const std::vector<DocumentEntry> entries = list_folder(folder);
-        const bool folder_has_cue = std::any_of(
-            entries.begin(), entries.end(), [](const DocumentEntry& entry) {
-                const std::string lower = lowercased(entry.name);
-                return !entry.is_directory && lower.size() > 4 &&
-                       lower.compare(lower.size() - 4, 4, ".cue") == 0;
-            });
-        for (const DocumentEntry& entry : entries) {
-            if (entry.is_directory) {
-                if (depth < 8) pending.emplace_back(entry.uri, depth + 1);
-                continue;
-            }
-            if (!has_disc_extension(entry.name)) {
-                // A system ROM sitting in the same folder as the games is the
-                // normal way people keep these, so finding one is the app's
-                // job rather than something to ask about. Recognised by its
-                // ARM vectors, not by being called bios.rom.
-                if (bios_candidate.empty()) {
-                    u8 head[32] = {0};
-                    if (read_head(entry.uri, head, sizeof head) &&
-                        looks_like_system_rom(head, sizeof head)) {
-                        bios_candidate = entry.uri;
-                        bios_candidate_name = entry.name;
-                    }
-                }
-                continue;
-            }
-            const std::string lower = lowercased(entry.name);
-            if (folder_has_cue && lower.size() > 4 &&
-                lower.compare(lower.size() - 4, 4, ".bin") == 0) {
-                continue;  // the CUE is the game; its BIN files are tracks
-            }
-            if (library_.add(entry.name, entry.uri)) ++added;
-            if (added >= 2048) break;
-        }
+    for (const DocumentEntry& disc : scan.discs) {
+        library_.add(disc.name, disc.uri);
     }
+    match_covers(target);
     ui_->set_game_library(library_.games());
+
+    // A selected library root may contain both games/ and bios/. Keep a real
+    // BIOS the user already selected; the built-in demo does not count as one.
+    if (!scan.bios.empty() &&
+        (!console_->bios_loaded() || console_->demo_loaded())) {
+        const DocumentEntry folder = scan.bios_folder.uri.empty()
+            ? DocumentEntry{name, target, true} : scan.bios_folder;
+        settings_->set(settings_key::kBiosFolderPath, folder.uri);
+        settings_->set(settings_key::kBiosFolderName, folder.name);
+        ui_->set_bios_folder(folder.name, folder.uri);
+        adopt_bios(scan.bios);
+    }
     save_settings();
-    SDL_Log("Setup library scan added %zu game%s", added, added == 1 ? "" : "s");
-    // A ROM found beside the games is loaded only when the machine has none.
-    // Never over the top of one the user chose: they picked that for a reason,
-    // and silently swapping it for whatever a scan turned up is the sort of
-    // thing nobody can diagnose.
-    if (!bios_candidate.empty() && !console_->bios_loaded()) {
-        if (open_bios(bios_candidate, bios_candidate_name)) {
-            settings_->set(settings_key::kBiosPath, bios_candidate);
-            settings_->set(settings_key::kBiosName, bios_candidate_name);
-            save_settings();
-            SDL_Log("Adopted system ROM found in the games folder: %s",
-                    bios_candidate_name.c_str());
-        }
+    SDL_Log("Setup library scan found %zu game(s) and %zu system ROM(s)",
+            library_.games().size(), scan.bios.size());
+    if (changing_saves) {
+        load_nvram();
+        emulator_->set_paused(was_paused || !emulating_);
     }
 }
 
@@ -1232,6 +1246,11 @@ void App::tick() {
         (resume_after != 0 && SDL_GetTicks() < resume_after)) {
         if (!lifecycle_pause_applied_) {
             emulator_->set_paused(true);
+            // Wait for the current field so its final RAM writes are included
+            // before Android can stop this background process.
+            emulator_->snapshot_nvram(nvram_scratch_);
+            nvram_retry_after_ms_ = 0;
+            save_nvram();
             lifecycle_pause_applied_ = true;
         }
         if (backgrounded_.load(std::memory_order_acquire)) suspend_renderer();
@@ -1339,6 +1358,7 @@ void App::tick() {
         }
     }
     if (intent.start_demo) {
+        ui_->set_game_session_available(false);
         // Stop at a frame boundary before replacing the ROM. The demo never
         // changes the remembered user BIOS and deliberately runs with no disc.
         emulator_->set_paused(true);
@@ -1369,17 +1389,34 @@ void App::tick() {
             SDL_Log("%s", console_->last_error().c_str());
         }
     }
+    // Leaving the demonstration puts the user's own ROM back in the machine.
+    // Without this the app forgets a perfectly good BIOS the moment anyone
+    // tries the demo, and the System page says it has none -- while settings
+    // still hold the path, which makes it look like the setting is ignored.
+    if (intent.restore_bios && console_->demo_loaded()) {
+        const std::string remembered = settings_->get(settings_key::kBiosPath);
+        const std::string remembered_name = settings_->get(settings_key::kBiosName);
+        if (!remembered.empty() && open_bios(remembered, remembered_name)) {
+            SDL_Log("Restored the system ROM after the demonstration");
+        } else {
+            console_->eject_disc();
+        }
+    }
     if (intent.eject) {
         console_->eject_disc();
     }
     if (intent.reset) {
         emulator_->request_reset();
         emulating_ = console_->bios_loaded();
+        ui_->set_game_session_available(emulating_ && console_->disc_loaded() &&
+                                        !console_->demo_loaded());
         emulator_->set_paused(!emulating_);
     }
     if (intent.start_disc && selected_disc_ready) {
         emulator_->request_reset();
         emulating_ = console_->bios_loaded();
+        ui_->set_game_session_available(emulating_ && console_->disc_loaded() &&
+                                        !console_->demo_loaded());
         emulator_->set_paused(!emulating_);
     }
     if (intent.toggle_pause) {
@@ -1446,7 +1483,7 @@ void App::tick() {
     SDL_GetRenderScale(renderer_, &previous_scale_x, &previous_scale_y);
     SDL_SetRenderScale(renderer_, 1.0f, 1.0f);
 
-    present();
+    if (!ui_->layout_preview_active()) present();
 
     // Over the picture, under the menus: the controls belong to the game, not
     // to the launcher.

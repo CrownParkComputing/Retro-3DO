@@ -10,6 +10,7 @@ struct GuideView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var step = 0
     @State private var importing = false
+    @State private var editingControls = false
     @State private var note: String?
 
     /// Named here rather than in the shared text because each platform's
@@ -90,6 +91,10 @@ struct GuideView: View {
             }
             .ignoresSafeArea()
         }
+        .fullScreenCover(isPresented: $editingControls) { PadLayoutEditor() }
+        .onAppear {
+            if CommandLine.arguments.contains("-capture-pad-layout") { editingControls = true }
+        }
     }
 
     // A row of bars rather than "3 of 7": it shows how much is left without
@@ -113,7 +118,7 @@ struct GuideView: View {
         let first = Int(r3_guide_action(Int32(step), 0))
         // Nothing to offer when it is already done: the step explains itself
         // and the user moves on.
-        if first != Int(R3_GUIDE_NONE.rawValue) && !satisfied(step) {
+        if first != R3_GUIDE_NONE && !satisfied(step) {
             VStack(spacing: 10) {
                 actionButton(slot: 0, action: first)
                 if let note {
@@ -131,14 +136,16 @@ struct GuideView: View {
     private func actionButton(slot: Int, action: Int) -> some View {
         Button {
             note = nil
-            switch UInt32(action) {
-            case R3_GUIDE_PLAY_DEMO.rawValue:
+            switch action {
+            case R3_GUIDE_PLAY_DEMO:
                 // Started as a guide session, so leaving it comes back here
                 // rather than dropping the user on the shelf mid-walkthrough.
                 engine.playDemo(fromGuide: true)
                 dismiss()
-            case R3_GUIDE_ADD_GAME.rawValue, R3_GUIDE_ADD_BIOS.rawValue:
+            case R3_GUIDE_ADD_GAME, R3_GUIDE_ADD_BIOS:
                 importing = true
+            case R3_GUIDE_EDIT_LAYOUT:
+                editingControls = true
             default:
                 break
             }
@@ -203,10 +210,10 @@ struct GuideView: View {
     /// which state to look at through its action; nobody should be walked
     /// through importing a system ROM they imported last week.
     private func satisfied(_ i: Int) -> Bool {
-        switch UInt32(r3_guide_action(Int32(i), 0)) {
-        case R3_GUIDE_ADD_BIOS.rawValue:               return engine.hasBios
-        case R3_GUIDE_ADD_GAME.rawValue,
-             R3_GUIDE_CHOOSE_FOLDER.rawValue:          return !engine.discs.isEmpty
+        switch Int(r3_guide_action(Int32(i), 0)) {
+        case R3_GUIDE_ADD_BIOS:               return engine.hasBios
+        case R3_GUIDE_ADD_GAME,
+             R3_GUIDE_CHOOSE_FOLDER:          return !engine.discs.isEmpty
         default:                                        return false
         }
     }

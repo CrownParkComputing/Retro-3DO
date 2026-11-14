@@ -17,7 +17,15 @@ public:
     // Open at the most sensible starting place. `extensions` are matched
     // case-insensitively, with the leading dot, and an empty list shows every
     // file.
-    void open(const std::string& title, std::vector<std::string> extensions);
+    // Start beside the remembered file, falling back to a configured folder
+    // when the file is unavailable, then to the platform's usual locations.
+    // A preferred child folder is used only when opening the configured fallback.
+    void open(const std::string& title, std::vector<std::string> extensions,
+              const std::string& remembered_file = {},
+              const std::string& fallback_folder = {},
+              const std::vector<std::string>& preferred_subfolders = {});
+    void open_disc(const std::string& title, const std::string& remembered_file,
+                   const std::string& library_folder);
 
     // Open to choose a FOLDER rather than a file. The list still shows files,
     // because seeing the discs in a folder is how anybody knows it is the
@@ -33,7 +41,13 @@ public:
     bool draw(std::string* chosen_path, std::string* chosen_name);
 
 private:
+    void open_impl(const std::string& title, std::vector<std::string> extensions,
+                   const std::string& remembered_file, const std::string& fallback_folder,
+                   const std::vector<std::string>& preferred_subfolders);
+    bool accepts_entry(const std::string& name, const std::string& target,
+                       bool is_directory) const;
     void navigate_to(const std::string& directory);
+    void prefer_subfolder(const std::vector<std::string>& names);
 
     struct Entry {
         std::string name;
@@ -49,6 +63,7 @@ private:
     // the user sees is the same.
     bool using_documents_ = false;
     bool choosing_folder_ = false;
+    bool disc_images_only_ = false;
 
     bool open_ = false;
     std::string title_;

@@ -2,6 +2,10 @@
 
 #include "core/guide.h"
 
+#if RETRO3DO_HAVE_IMAGE
+#include <SDL3_image/SDL_image.h>
+#endif
+
 #include <SDL3/SDL.h>
 
 #include <algorithm>
@@ -237,7 +241,6 @@ void Ui::wake_menu_button() {
 
 void Ui::hide_launcher() {
     show_launcher_ = false;
-    session_available_ = true;
     wake_menu_button();
 }
 
@@ -305,6 +308,30 @@ void Ui::configure_setup(bool complete, const std::string& bios_folder_name,
     games_folder_name_ = games_folder_name;
     games_folder_target_ = games_folder_target;
     if (!complete) wizard_step_ = WizardStep::Welcome;
+}
+
+SDL_Texture* Ui::cover_texture(const std::string& path) {
+#if RETRO3DO_HAVE_IMAGE
+    if (path.empty() || renderer_ == nullptr) return nullptr;
+    const auto found = covers_.find(path);
+    if (found != covers_.end()) return found->second;
+    // A null is cached too. A picture that will not decode must be attempted
+    // once, not once per frame for as long as the library is open.
+    SDL_Texture* texture = IMG_LoadTexture(renderer_, path.c_str());
+    if (texture != nullptr) SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+    covers_.emplace(path, texture);
+    return texture;
+#else
+    (void)path;
+    return nullptr;
+#endif
+}
+
+void Ui::forget_covers() {
+    for (auto& [path, texture] : covers_) {
+        if (texture != nullptr) SDL_DestroyTexture(texture);
+    }
+    covers_.clear();
 }
 
 void Ui::shutdown() {
@@ -478,6 +505,15 @@ UiIntent Ui::build(Console& console, bool emulating, double display_fps,
     apply_safe_area();
     update_touch_scroll();
 
+    if (splash_complete_) poll_setup_picker(intent);
+    if (wizard_layout_edit_ && !touch_editing) {
+        wizard_layout_edit_ = false;
+    }
+    if (guide_layout_edit_ && !touch_editing) {
+        guide_layout_edit_ = false;
+        guide_open_ = true;
+        guide_focus_ = true;
+    }
 
     if (!splash_complete_) {
         draw_splash();
@@ -485,10 +521,15 @@ UiIntent Ui::build(Console& console, bool emulating, double display_fps,
             ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             splash_complete_ = true;
         }
-    } else if (!setup_complete_) {
+    } else if (!setup_complete_ && !wizard_layout_edit_) {
         menu_requested_ = false;
-        poll_setup_picker(intent);
         draw_setup_wizard(console, intent);
+        draw_file_browser(intent);
+    } else if (layout_preview_active()) {
+        if (menu_requested_) intent.toggle_layout_edit = true;
+        menu_requested_ = false;
+        draw_overlay(console, emulating, display_fps, emulated_fps, frame_ms,
+                     underruns, touch_visible, touch_editing, intent);
     } else if (show_launcher_) {
         menu_requested_ = false;
         draw_launcher(console, emulating, touch_visible, touch_editing, intent);
@@ -573,11 +614,14 @@ void Ui::draw_splash() {
 void Ui::poll_setup_picker(UiIntent& intent) {
     if (wizard_pick_ == WizardPick::None) return;
     const DocumentEntry picked = AndroidStorage::consume_picked_folder();
-    if (picked.uri.empty()) return;
+    if (!picked.is_directory) return;
+    const WizardPick pick = wizard_pick_;
+    wizard_pick_ = WizardPick::None;
+    if (picked.uri.empty()) return;  // cancelled
 
     intent.folder_path = picked.uri;
     intent.folder_name = picked.name;
-    if (wizard_pick_ == WizardPick::Bios) {
+    if (pick == WizardPick::Bios) {
         bios_folder_name_ = picked.name;
         bios_folder_target_ = picked.uri;
         intent.bios_folder_chosen = true;
@@ -586,7 +630,6 @@ void Ui::poll_setup_picker(UiIntent& intent) {
         games_folder_target_ = picked.uri;
         intent.games_folder_chosen = true;
     }
-    wizard_pick_ = WizardPick::None;
 }
 
 void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
@@ -610,15 +653,16 @@ void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
     ImGui::SetCursorPos(ImVec2((viewport->WorkSize.x - width) * 0.5f,
                               (viewport->WorkSize.y - height) * 0.5f));
     ImGui::BeginChild("##setup_card", ImVec2(width, height),
-                      ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar);
+                      ImGuiChildFlags_Borders);
     ImGui::PushTextWrapPos(0.0f);
     ImGui::TextColored(kCyan, "RETRO-3DO SETUP");
     const int step = wizard_step_ == WizardStep::Welcome ? 1
-                   : wizard_step_ == WizardStep::Bios    ? 2
-                   : wizard_step_ == WizardStep::Games   ? 3
-                                                          : 4;
+                   : wizard_step_ == WizardStep::Games   ? 2
+                   : wizard_step_ == WizardStep::Bios    ? 3
+                   : wizard_step_ == WizardStep::Controls ? 4
+                                                          : 5;
     ImGui::SameLine();
-    ImGui::TextColored(kMuted, "STEP %d OF 4", step);
+    ImGui::TextColored(kMuted, "STEP %d OF 5", step);
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -628,9 +672,9 @@ void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
             ImGui::TextUnformatted("WELCOME TO RETRO-3DO");
             ImGui::SetWindowFontScale(1.0f);
             ImGui::TextWrapped(
-                "Setup needs access to two folders: one containing your legally "
-                "obtained 3DO BIOS and one containing your games. Android will "
-                "show its folder picker for each choice.");
+                "Choose your library folder. It can contain a games folder and "
+                "a bios folder with your own 3DO system ROMs. Retro-3DO finds "
+                "both automatically. You can also choose separate folders.");
             ImGui::Spacing();
             ImGui::TextColored(kGreen, "SCOPED STORAGE");
             ImGui::TextWrapped(
@@ -638,7 +682,7 @@ void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
                 "does not request permission to read the rest of your device.");
             ImGui::Spacing();
             if (wide_button("BEGIN SETUP", 44.0f * scale_)) {
-                wizard_step_ = WizardStep::Bios;
+                wizard_step_ = WizardStep::Games;
             }
             ImGui::Spacing();
             if (wide_button("TRY BUILT-IN HARDWARE DEMO", 44.0f * scale_)) {
@@ -646,7 +690,6 @@ void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
                 // saved, so the legal user-BIOS setup returns next launch.
                 setup_complete_ = true;
                 show_launcher_ = false;
-                session_available_ = true;
                 intent.start_demo = true;
                 wake_menu_button();
             }
@@ -667,41 +710,52 @@ void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
             if (wide_button(bios_folder_target_.empty() ? "SELECT BIOS FOLDER"
                                                          : "CHANGE BIOS FOLDER",
                             42.0f * scale_)) {
-                wizard_pick_ = WizardPick::Bios;
-                AndroidStorage::pick_folder();
+                if (AndroidStorage::available()) {
+                    wizard_pick_ = WizardPick::Bios;
+                    AndroidStorage::pick_folder();
+                } else {
+                    browsing_ = Browsing::BiosFolder;
+                    browser_.open_folder("Choose your BIOS folder");
+                }
             }
             if (wizard_pick_ == WizardPick::Bios) {
                 ImGui::TextColored(kAmber, "Waiting for Android folder selection...");
-            } else if (console.bios_loaded()) {
+            } else if (console.bios_loaded() && !console.demo_loaded()) {
                 ImGui::TextColored(kGreen, "BIOS found and loaded successfully");
             } else if (!bios_folder_target_.empty()) {
                 ImGui::TextColored(kRed,
                                    "No valid BIOS was found. Choose another folder.");
             }
-            ImGui::BeginDisabled(!console.bios_loaded());
+            ImGui::BeginDisabled(!console.bios_loaded() || console.demo_loaded());
             if (wide_button("CONTINUE", 42.0f * scale_)) {
-                wizard_step_ = WizardStep::Games;
+                wizard_step_ = WizardStep::Controls;
             }
             ImGui::EndDisabled();
             break;
 
         case WizardStep::Games:
             ImGui::SetWindowFontScale(1.45f);
-            ImGui::TextUnformatted("CHOOSE YOUR GAMES FOLDER");
+            ImGui::TextUnformatted("CHOOSE YOUR LIBRARY FOLDER");
             ImGui::SetWindowFontScale(1.0f);
             ImGui::TextWrapped(
-                "Select the top-level folder containing your ISO, BIN/CUE, IMG "
-                "or CHD games. Subfolders are scanned automatically.");
+                "Select your library folder containing games and bios, or a "
+                "folder of ISO, BIN/CUE, IMG or CHD games. Subfolders and "
+                "system ROMs are detected automatically.");
             ImGui::Spacing();
             ImGui::TextColored(games_folder_target_.empty() ? kMuted : kCyan,
                                "%s", games_folder_target_.empty()
                                          ? "No folder selected"
                                          : games_folder_name_.c_str());
-            if (wide_button(games_folder_target_.empty() ? "SELECT GAMES FOLDER"
-                                                          : "CHANGE GAMES FOLDER",
+            if (wide_button(games_folder_target_.empty() ? "SELECT LIBRARY FOLDER"
+                                                          : "CHANGE LIBRARY FOLDER",
                             42.0f * scale_)) {
-                wizard_pick_ = WizardPick::Games;
-                AndroidStorage::pick_folder();
+                if (AndroidStorage::available()) {
+                    wizard_pick_ = WizardPick::Games;
+                    AndroidStorage::pick_folder();
+                } else {
+                    browsing_ = Browsing::GamesFolder;
+                    browser_.open_folder("Choose your library folder");
+                }
             }
             if (wizard_pick_ == WizardPick::Games) {
                 ImGui::TextColored(kAmber, "Waiting for Android folder selection...");
@@ -709,12 +763,36 @@ void Ui::draw_setup_wizard(Console& console, UiIntent& intent) {
                 ImGui::TextColored(kGreen, "%zu game%s currently in the library",
                                    library_.games().size(),
                                    library_.games().size() == 1 ? "" : "s");
+                if (console.bios_loaded() && !console.demo_loaded()) {
+                    ImGui::TextColored(kGreen, "System ROM ready");
+                }
             }
             ImGui::BeginDisabled(games_folder_target_.empty());
             if (wide_button("CONTINUE", 42.0f * scale_)) {
-                wizard_step_ = WizardStep::Finish;
+                wizard_step_ = console.bios_loaded() && !console.demo_loaded()
+                    ? WizardStep::Controls : WizardStep::Bios;
             }
             ImGui::EndDisabled();
+            break;
+
+        case WizardStep::Controls:
+            ImGui::SetWindowFontScale(1.45f);
+            ImGui::TextUnformatted("ARRANGE YOUR ON-SCREEN PAD");
+            ImGui::SetWindowFontScale(1.0f);
+            ImGui::TextWrapped(
+                "Drag the controls to suit your hands. You can configure them "
+                "even with a controller plugged in. Choose DONE MOVING to "
+                "save your layout and return here.");
+            ImGui::Spacing();
+            if (wide_button("ARRANGE MY CONTROLS", 44.0f * scale_)) {
+                wizard_layout_edit_ = true;
+                intent.toggle_layout_edit = true;
+                wake_menu_button();
+            }
+            ImGui::Spacing();
+            if (wide_button("CONTINUE", 42.0f * scale_)) {
+                wizard_step_ = WizardStep::Finish;
+            }
             break;
 
         case WizardStep::Finish:
@@ -757,8 +835,10 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
     // a visible quit control is a known review rejection. The system gesture is
     // the way out of a handheld; on a desktop the button still is. It has to
     // come out of the count as well as the layout or the grid keeps its slot.
+    const bool can_resume = session_available_ && !emulating &&
+        console.bios_loaded() && !console.demo_loaded() && console.disc_loaded();
     const int action_count = 5 + (RETRO3DO_PLATFORM_IOS ? 0 : 1) +
-                             (session_available_ ? 1 : 0);
+                             (can_resume ? 1 : 0);
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const int nav_columns = std::max(1, std::min(action_count,
         static_cast<int>((total_width + gap) / (84.0f * scale_ + gap))));
@@ -786,7 +866,6 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
         if (selected) ImGui::PopStyleColor(2);
     };
     nav_button("LIBRARY", Page::Library);
-    next_nav();
     // No DEMO button here on purpose. The demonstration is part of being shown
     // round the app, so the walkthrough is the only thing that offers it, and
     // leaving it returns there rather than dropping the user on the library.
@@ -801,7 +880,7 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
     if (ImGui::Button("GUIDE", ImVec2(action_width, 40.0f * scale_))) open_guide();
     ImGui::PopStyleColor(2);
     nav_button("ABOUT", Page::About);
-    if (session_available_) {
+    if (can_resume) {
         next_nav();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.08f, 0.34f, 0.27f, 1.0f));
         if (ImGui::Button("RESUME", ImVec2(action_width, 40.0f * scale_))) {
@@ -953,17 +1032,40 @@ void Ui::draw_library(Console& console, UiIntent& intent) {
                 ImVec2(tile_left, content_top),
                 ImVec2(tile_left + tile_width, content_top + art_height),
                 colour(tinted(accent, 0.16f)), 6.0f * scale_);
+            // The picture if the user supplied one, the initial if not. A
+            // library with some covers and some letters has to look composed
+            // rather than half-finished, so the letter keeps its tinted tile
+            // and the picture sits in exactly the same box.
+            SDL_Texture* art = cover_texture(game.cover);
+            if (art != nullptr) {
+                float tw = 0.0f, th = 0.0f;
+                SDL_GetTextureSize(art, &tw, &th);
+                const float scale_fit =
+                    (tw > 0.0f && th > 0.0f)
+                        ? std::min(tile_width / tw, art_height / th)
+                        : 1.0f;
+                const float dw = tw * scale_fit;
+                const float dh = th * scale_fit;
+                const ImVec2 at(tile_left + (tile_width - dw) * 0.5f,
+                                content_top + (art_height - dh) * 0.5f);
+                draw->AddImageRounded(
+                    reinterpret_cast<ImTextureID>(art), at,
+                    ImVec2(at.x + dw, at.y + dh), ImVec2(0.0f, 0.0f),
+                    ImVec2(1.0f, 1.0f), IM_COL32_WHITE, 5.0f * scale_);
+            }
             const char initial[2] = {card_initial(game.name), '\0'};
             const float initial_size = ImGui::GetFontSize() * 1.7f;
             const ImVec2 initial_bounds = ImGui::GetFont()->CalcTextSizeA(
                 initial_size, FLT_MAX, 0.0f, initial);
-            draw->AddText(
-                ImGui::GetFont(), initial_size,
-                ImVec2(tile_left +
-                           (tile_width - initial_bounds.x) * 0.5f,
-                       content_top +
-                           (art_height - initial_bounds.y) * 0.5f),
-                colour(accent), initial);
+            if (art == nullptr) {
+                draw->AddText(
+                    ImGui::GetFont(), initial_size,
+                    ImVec2(tile_left +
+                               (tile_width - initial_bounds.x) * 0.5f,
+                           content_top +
+                               (art_height - initial_bounds.y) * 0.5f),
+                    colour(accent), initial);
+            }
 
             const float text_width = card_width - padding * 2.0f;
             draw_card_title(draw, game.name,
@@ -989,7 +1091,6 @@ void Ui::draw_library(Console& console, UiIntent& intent) {
                 intent.disc_name = game.name;
                 active_discs_ = game.discs;
                 active_disc_ = 0;
-                session_available_ = true;
                 show_launcher_ = false;
                 wake_menu_button();
             }
@@ -1175,7 +1276,9 @@ void Ui::draw_system(Console& console, UiIntent& intent) {
     }
     if (ImGui::Button("BROWSE##bios", ImVec2(column_width * 0.48f, 0.0f))) {
         browsing_ = Browsing::Bios;
-        browser_.open("Choose a BIOS image", {".rom", ".bin"});
+        browser_.open("Choose a BIOS image", {".rom", ".bin"},
+                      bios_target_.empty() ? std::string(bios_path_buffer_) : bios_target_,
+                      bios_folder_target_);
     }
     ImGui::SameLine();
     if (ImGui::Button("LOAD##bios", ImVec2(-1.0f, 0.0f))) {
@@ -1199,7 +1302,9 @@ void Ui::draw_system(Console& console, UiIntent& intent) {
     }
     if (ImGui::Button("BROWSE##disc", ImVec2(column_width * 0.48f, 0.0f))) {
         browsing_ = Browsing::Disc;
-        browser_.open("Choose a disc image", {".iso", ".bin", ".cue", ".img", ".chd"});
+        browser_.open_disc("Choose a disc image",
+                      disc_target_.empty() ? std::string(disc_path_buffer_) : disc_target_,
+                      games_folder_target_);
     }
     ImGui::SameLine();
     if (ImGui::Button("INSERT##disc", ImVec2(-1.0f, 0.0f))) {
@@ -1218,7 +1323,6 @@ void Ui::draw_system(Console& console, UiIntent& intent) {
         ImGui::BeginDisabled(!console.bios_loaded() || console.demo_loaded());
         if (ImGui::Button("START CURRENT DISC")) {
             intent.reset = true;
-            session_available_ = true;
             show_launcher_ = false;
             wake_menu_button();
         }
@@ -1227,16 +1331,6 @@ void Ui::draw_system(Console& console, UiIntent& intent) {
         ImGui::TextColored(kMuted, "No disc inserted");
     }
 
-    ImGui::Separator();
-    ImGui::TextColored(kCyan, "STORAGE FOLDERS");
-    ImGui::Text("BIOS: %.42s", bios_folder_name_.empty()
-                                   ? "Not configured" : bios_folder_name_.c_str());
-    ImGui::Text("Games: %.41s", games_folder_name_.empty()
-                                    ? "Not configured" : games_folder_name_.c_str());
-    if (ImGui::Button("RUN FOLDER SETUP", ImVec2(-1.0f, 0.0f))) {
-        setup_complete_ = false;
-        wizard_step_ = WizardStep::Welcome;
-    }
     end_panel();
     ImGui::PopStyleVar();
 }
@@ -1255,7 +1349,7 @@ void Ui::draw_about() {
     ImGui::SetWindowFontScale(1.35f);
     ImGui::TextColored(kCyan, "RETRO-3DO");
     ImGui::SetWindowFontScale(0.88f);
-    ImGui::TextColored(kMuted, "Version 2.1.1  |  September 2026");
+    ImGui::TextColored(kMuted, "Version 2.2.0  |  November 2026");
     ImGui::Spacing();
     ImGui::TextWrapped(
         "Retro-3DO is a brand-new 3DO emulator implementation, designed and "
@@ -1338,11 +1432,12 @@ void Ui::draw_overlay(Console& console, bool emulating, double display_fps,
                          ImGuiWindowFlags_AlwaysAutoResize |
                          ImGuiWindowFlags_NoSavedSettings |
                          ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav);
-        if (ImGui::Button("MENU", ImVec2(92.0f * scale_, 0.0f))) {
+        if (!layout_preview_active() &&
+            ImGui::Button("MENU", ImVec2(92.0f * scale_, 0.0f))) {
             open_quick_menu(emulating, intent);
         }
         if (touch_editing) {
-            ImGui::SameLine();
+            if (!layout_preview_active()) ImGui::SameLine();
             if (ImGui::Button("DONE MOVING")) intent.toggle_layout_edit = true;
         }
         ImGui::End();
@@ -1396,12 +1491,16 @@ void Ui::draw_quick_menu(Console& console, bool emulating, bool touch_visible,
     ImGui::TextColored(kMuted, "Game paused - machine timing is preserved");
     ImGui::Separator();
 
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.08f, 0.35f, 0.28f, 1.0f));
-    if (wide_button("RESUME", 42.0f * scale_)) {
-        quick_menu_ = false;
-        if (resume_after_menu_ && !emulating) intent.toggle_pause = true;
+    const bool can_resume = session_available_ && !emulating &&
+        console.bios_loaded() && !console.demo_loaded() && console.disc_loaded();
+    if (can_resume || (console.demo_loaded() && !emulating)) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.08f, 0.35f, 0.28f, 1.0f));
+        if (wide_button(can_resume ? "RESUME" : "CONTINUE DEMO", 42.0f * scale_)) {
+            quick_menu_ = false;
+            intent.toggle_pause = true;
+        }
+        ImGui::PopStyleColor();
     }
-    ImGui::PopStyleColor();
 
     // The demonstration the walkthrough started is not the app proper, and its
     // menu says so: carry on, or go back to the guide. Nothing else belongs
@@ -1417,6 +1516,7 @@ void Ui::draw_quick_menu(Console& console, bool emulating, bool touch_visible,
             guide_demo_ = false;
             show_launcher_ = true;
             quick_menu_ = false;
+            intent.restore_bios = true;
             open_guide();
             guide_step_ = guide_demo_step_;
         }
@@ -1480,6 +1580,7 @@ void Ui::draw_quick_menu(Console& console, bool emulating, bool touch_visible,
         page_ = Page::Library;
         show_launcher_ = true;
         quick_menu_ = false;
+        if (console.demo_loaded()) intent.restore_bios = true;
     }
 #if !RETRO3DO_PLATFORM_IOS
     if (ImGui::Button("EXIT RETRO-3DO", ImVec2(-1.0f, 0.0f))) intent.quit = true;
@@ -1500,7 +1601,13 @@ void Ui::draw_file_browser(UiIntent& intent) {
         intent.bios_chosen = true;
         intent.bios_path = picked;
         intent.bios_name = picked_name;
+    } else if (browsing_ == Browsing::BiosFolder) {
+        set_bios_folder(picked_name, picked);
+        intent.bios_folder_chosen = true;
+        intent.folder_path = picked;
+        intent.folder_name = picked_name;
     } else if (browsing_ == Browsing::GamesFolder) {
+        set_games_folder(picked_name, picked);
         intent.games_folder_chosen = true;
         intent.folder_path = picked;
         intent.folder_name = picked_name;
@@ -1577,7 +1684,8 @@ void Ui::render(SDL_Renderer* renderer) {
 // be able to half-start a game underneath it.
 // ---------------------------------------------------------------------------
 void Ui::draw_guide(Console& console, UiIntent& intent) {
-    if (guide_resume_ && browsing_ == Browsing::None) {
+    if (guide_resume_ && browsing_ == Browsing::None &&
+        wizard_pick_ == WizardPick::None) {
         guide_resume_ = false;
         guide_open_ = true;
         guide_focus_ = true;
@@ -1642,7 +1750,7 @@ void Ui::draw_guide(Console& console, UiIntent& intent) {
                        static_cast<float>(s_i->accent & 0xFF) / 255.0f, 1.0f);
         }
         ImGui::PushStyleColor(ImGuiCol_ChildBg, c);
-        ImGui::BeginChild(ImGui::GetID(static_cast<void*>(nullptr) + i + 1),
+        ImGui::BeginChild(static_cast<ImGuiID>(i + 1),
                           ImVec2(bar_w, 4.0f * scale_));
         ImGui::EndChild();
         ImGui::PopStyleColor();
@@ -1694,7 +1802,6 @@ void Ui::draw_guide(Console& console, UiIntent& intent) {
         switch (action) {
             case kActionPlayDemo:
                 intent.start_demo = true;
-                session_available_ = true;
                 show_launcher_ = false;
                 guide_open_ = false;
                 guide_demo_ = true;
@@ -1703,13 +1810,14 @@ void Ui::draw_guide(Console& console, UiIntent& intent) {
                 break;
             case kActionAddGame:
                 browsing_ = Browsing::Disc;
-                browser_.open("Choose a game", {".iso", ".chd", ".img", ".cue", ".bin"});
+                browser_.open_disc("Choose a game", disc_target_, games_folder_target_);
                 guide_open_ = false;
                 guide_resume_ = true;
                 break;
             case kActionAddBios:
                 browsing_ = Browsing::Bios;
-                browser_.open("Choose your 3DO system ROM", {".rom", ".bin"});
+                browser_.open("Choose your 3DO system ROM", {".rom", ".bin"},
+                              bios_target_, bios_folder_target_);
                 guide_open_ = false;
                 guide_resume_ = true;
                 break;
@@ -1721,21 +1829,17 @@ void Ui::draw_guide(Console& console, UiIntent& intent) {
                     guide_resume_ = true;
                 } else {
                     browsing_ = Browsing::GamesFolder;
-                    browser_.open_folder("Choose the folder your games are in");
+                    browser_.open_folder("Choose your library folder");
                     guide_open_ = false;
                     guide_resume_ = true;
                 }
                 break;
             case kActionEditLayout:
-                // Needs the picture behind it to drag against, so this leaves
-                // the guide the way the demonstration does.
-                intent.start_demo = true;
+                // Preview the controls without replacing the user's BIOS or
+                // disc. Finishing the edit returns to this same guide step.
                 intent.toggle_layout_edit = true;
-                session_available_ = true;
-                show_launcher_ = false;
                 guide_open_ = false;
-                guide_demo_ = true;
-                guide_demo_step_ = guide_step_;
+                guide_layout_edit_ = true;
                 wake_menu_button();
                 break;
             case kActionNone:

@@ -43,6 +43,7 @@ public:
 
     static bool is_directory(const std::string& path);
     static bool exists(const std::string& path);
+    static bool is_system_rom(const std::string& target);
 };
 
 }  // namespace retro3do

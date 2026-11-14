@@ -161,6 +161,7 @@ enum {
     R3_GUIDE_ADD_GAME      = 2,
     R3_GUIDE_ADD_BIOS      = 3,
     R3_GUIDE_CHOOSE_FOLDER = 4,   // never reaches iOS
+    R3_GUIDE_EDIT_LAYOUT   = 5,
 };
 int r3_guide_action(int step, int slot);
 int r3_guide_action_label(int step, int slot, char *out, int out_len);

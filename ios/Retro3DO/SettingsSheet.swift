@@ -11,6 +11,7 @@ struct SettingsSheet: View {
     @EnvironmentObject private var engine: Engine
     @Environment(\.dismiss) private var dismiss
     @State private var pal = false
+    @State private var editingControls = false
 
     var body: some View {
         NavigationStack {
@@ -20,7 +21,13 @@ struct SettingsSheet: View {
                         Label("How Retro-3DO works", systemImage: "book")
                     }
                 } footer: {
-                    Text("The seven-step walkthrough from your first launch. It is here whenever you want it.")
+                    Text("The setup guide from your first launch. It is here whenever you want it.")
+                }
+
+                Section("On-screen controls") {
+                    Button("Arrange my controls") { editingControls = true }
+                } footer: {
+                    Text("Available even with a controller connected. Your layout is remembered.")
                 }
 
                 Section {
@@ -61,5 +68,6 @@ struct SettingsSheet: View {
         }
         .onAppear { pal = engine.isPal }
         .onChange(of: pal) { engine.isPal = $0 }
+        .fullScreenCover(isPresented: $editingControls) { PadLayoutEditor() }
     }
 }

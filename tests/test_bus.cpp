@@ -63,6 +63,24 @@ TEST(an_oversized_bios_is_refused) {
     CHECK(!bus.bios_loaded());
 }
 
+TEST(system_rom_detection_accepts_retail_and_branch_vectors_but_rejects_disc_data) {
+    u8 head[32] = {};
+    CHECK(!looks_like_system_rom(head, sizeof head));
+    for (size_t word = 0; word < 8; ++word) {
+        head[word * 4] = 0xE1;
+        head[word * 4 + 1] = 0xA0;
+        head[word * 4 + 2] = 0x10;
+        head[word * 4 + 3] = 0x01;
+    }
+    CHECK(looks_like_system_rom(head, sizeof head));
+    CHECK(!looks_like_system_rom(head, 31));
+    head[31] = 0;
+    CHECK(!looks_like_system_rom(head, sizeof head));
+    for (size_t word = 0; word < 8; ++word) head[word * 4] = 0xEA;
+    CHECK(looks_like_system_rom(head, sizeof head));
+    CHECK(!looks_like_system_rom(nullptr, sizeof head));
+}
+
 TEST(a_reset_clears_ram_but_keeps_the_bios) {
     Bus bus;
     const u8 image[4] = {0x12, 0x34, 0x56, 0x78};

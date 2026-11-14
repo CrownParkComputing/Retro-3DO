@@ -83,6 +83,8 @@ public:
     // when the display thread comes asking. The copy is taken at a frame
     // boundary, so what comes out is always a whole consistent image.
     bool take_nvram(std::vector<u8>& out);
+    void snapshot_nvram(std::vector<u8>& out);
+    bool restore_nvram(const std::vector<u8>& data);
 
     EmulatorStats stats() const;
 
@@ -98,6 +100,7 @@ private:
     std::atomic<bool> paused_{false};
     std::atomic<bool> reset_requested_{false};
     mutable std::mutex nvram_lock_;
+    std::mutex machine_lock_;
     std::vector<u8> nvram_snapshot_;
     bool nvram_pending_ = false;
 

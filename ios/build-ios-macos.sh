@@ -8,9 +8,8 @@
 # ibtool or actool, and it silently drops the deployment target. Anything going
 # to TestFlight or the App Store comes from a real Xcode archive on a Mac.
 #
-# There is no separate iOS front end to build: the emulator, the UI and the
-# platform layer are the same sources the Linux and Android builds use. SDL
-# provides the UIApplication entry point.
+# SwiftUI owns the iOS interface and the shared C++ core runs the machine.
+# This target does not compile SDL or Dear ImGui.
 #
 # Usage:
 #   ios/build-ios-macos.sh                          # device build, unsigned
@@ -53,6 +52,7 @@ SIGNING_CERT_SHA1="${SIGNING_CERT_SHA1:-}"
 # App Store Connect refuses a CFBundleVersion it has seen before, and reports
 # it only after the entire upload has transferred.
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
+MARKETING_VERSION="${MARKETING_VERSION:-1.0}"
 
 SIGN_STYLE="Automatic"
 if [ -n "$PROFILE_NAME" ]; then
@@ -99,6 +99,7 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" -G Xcode \
     -DRETRO3DO_PROVISIONING_PROFILE="$PROFILE_NAME" \
     -DRETRO3DO_CODE_SIGN_IDENTITY="${PROFILE_NAME:+$SIGN_IDENTITY}" \
     -DRETRO3DO_BUILD_NUMBER="$BUILD_NUMBER" \
+    -DRETRO3DO_MARKETING_VERSION="$MARKETING_VERSION" \
     -DRETRO3DO_BUILD_TESTS=OFF \
     -DRETRO3DO_USE_SYSTEM_SDL=OFF
 

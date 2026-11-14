@@ -73,6 +73,11 @@ struct Shelf: View {
             }
         }
         .task {
+            if CommandLine.arguments.contains("-capture-shelf") { return }
+            if CommandLine.arguments.contains("-capture-guide") {
+                showingGuide = true
+                return
+            }
             // First launch only, and marked as seen the moment it is shown
             // rather than when it is finished: somebody who skips it has still
             // seen it, and being shown it twice is worse than missing the end.

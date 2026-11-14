@@ -69,6 +69,20 @@ bool EmulatorThread::take_nvram(std::vector<u8>& out) {
     return true;
 }
 
+void EmulatorThread::snapshot_nvram(std::vector<u8>& out) {
+    std::lock_guard<std::mutex> guard(machine_lock_);
+    out.assign(console_.bus().nvram(),
+               console_.bus().nvram() + console_.bus().nvram_size());
+}
+
+bool EmulatorThread::restore_nvram(const std::vector<u8>& data) {
+    std::lock_guard<std::mutex> machine_guard(machine_lock_);
+    if (!console_.bus().restore_nvram(data.data(), data.size())) return false;
+    std::lock_guard<std::mutex> snapshot_guard(nvram_lock_);
+    nvram_pending_ = false;
+    return true;
+}
+
 EmulatorStats EmulatorThread::stats() const {
     EmulatorStats s;
     s.frames_emulated = frames_emulated_.load(std::memory_order_relaxed);
@@ -93,6 +107,7 @@ void EmulatorThread::run() {
             continue;
         }
 
+        std::unique_lock<std::mutex> machine_guard(machine_lock_);
         if (reset_requested_.exchange(false, std::memory_order_acq_rel)) {
             console_.reset();
             deadline = Clock::now();
@@ -123,6 +138,7 @@ void EmulatorThread::run() {
             nvram_pending_ = true;
             console_.bus().clear_nvram_dirty();
         }
+        machine_guard.unlock();
 
         const auto finished = Clock::now();
         const double this_frame_ms =

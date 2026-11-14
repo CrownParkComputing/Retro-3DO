@@ -60,7 +60,7 @@ jobs:
     # of the pipeline for something nobody reads most pushes. Ask for it when
     # the screens have actually changed:
     #   gh workflow run ios.yml --ref ios-shelf -f screenshots=true
-    if: github.event_name == 'workflow_dispatch' && inputs.screenshots
+    if: github.ref == 'refs/heads/ios-shelf' || (github.event_name == 'workflow_dispatch' && inputs.screenshots)
     steps:
       - uses: actions/checkout@v5
         with:
@@ -112,13 +112,19 @@ jobs:
             xcrun simctl install "$udid" "$app"
 
             local n
-            for n in 1 2; do
+            for n in 1 2 3 4; do
               if [ "$n" = 1 ]; then
-                xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO
+                xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO -capture-shelf
                 sleep 9; local name="$2-1-shelf"
+              elif [ "$n" = 2 ]; then
+                xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO -capture-guide
+                sleep 5; local name="$2-2-guide"
+              elif [ "$n" = 3 ]; then
+                xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO -capture-guide -capture-pad-layout
+                sleep 5; local name="$2-3-controls"
               else
                 xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO -autoplay-demo
-                sleep 13; local name="$2-2-demo"
+                sleep 13; local name="$2-4-demo"
               fi
               xcrun simctl io "$udid" screenshot "shots/$name-raw.png"
               xcrun simctl terminate "$udid" com.crownparkcomputing.retro3DO || true

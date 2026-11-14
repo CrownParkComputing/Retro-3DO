@@ -82,10 +82,6 @@ TouchPad::TouchPad() : controls_(default_touch_layout(1280, 720)) {
 void TouchPad::set_physical_gamepad_present(bool present) {
     gamepad_present_ = present;
     if (present) {
-        // Editing controls which have just disappeared is both confusing and
-        // dangerous: an old drag would otherwise be resumed if the controller
-        // were unplugged later.
-        editing_ = false;
         active_.clear();
     }
 }

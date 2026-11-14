@@ -101,6 +101,7 @@ add_library(retro3do_core STATIC
     src/core/guide.cpp
     src/core/pbus.cpp
     src/core/console.cpp
+    src/core/covers.cpp
     src/core/disc.cpp
     src/core/demo_rom.cpp
     src/core/frame_mailbox.cpp
@@ -205,9 +206,11 @@ else()
         src/platform/emulator_thread.cpp
         src/ui/ui.cpp
         src/ui/game_library.cpp
+        src/ui/library_scan.cpp
         src/ui/file_browser.cpp
         src/ui/touch_pad.cpp
         src/platform/storage.cpp
+        src/platform/save_memory.cpp
         src/platform/android_storage.cpp
     )
 
@@ -232,6 +235,18 @@ else()
 
     find_package(Threads REQUIRED)
     target_link_libraries(retro3do PRIVATE retro3do_core imgui ${RETRO3DO_SDL_TARGET} Threads::Threads)
+
+    # Cover art, drawn only where there is something to decode a PNG with.
+    # Optional on purpose: the app works without covers, and a hard dependency
+    # for a picture on a card is not worth making the build harder to satisfy.
+    find_package(SDL3_image QUIET)
+    if(SDL3_image_FOUND)
+        target_link_libraries(retro3do PRIVATE SDL3_image::SDL3_image)
+        target_compile_definitions(retro3do PRIVATE RETRO3DO_HAVE_IMAGE=1)
+        message(STATUS "Cover art enabled (SDL3_image)")
+    else()
+        message(STATUS "No SDL3_image: library cards show initials, not covers")
+    endif()
     target_include_directories(retro3do PRIVATE src)
 
     if(APPLE)
@@ -352,17 +367,34 @@ if(RETRO3DO_BUILD_TESTS AND NOT IOS)
         tests/test_dsp.cpp
         tests/test_frame_mailbox.cpp
         tests/test_game_library.cpp
+        tests/test_library_scan.cpp
         tests/test_madam.cpp
+        tests/test_covers.cpp
         tests/test_pad_layout.cpp
         tests/test_path.cpp
         tests/test_settings.cpp
         tests/test_sport.cpp
         tests/test_vdlp.cpp
     )
-    target_sources(retro3do_tests PRIVATE src/ui/game_library.cpp)
+    target_sources(retro3do_tests PRIVATE src/ui/game_library.cpp src/ui/library_scan.cpp)
     target_link_libraries(retro3do_tests PRIVATE retro3do_core)
     find_package(Threads REQUIRED)
     target_link_libraries(retro3do_tests PRIVATE Threads::Threads)
     target_include_directories(retro3do_tests PRIVATE src tests)
     add_test(NAME retro3do_tests COMMAND retro3do_tests)
+
+    add_executable(retro3do_touch_tests
+        tests/test_main.cpp tests/test_touch_pad.cpp src/ui/touch_pad.cpp)
+    target_include_directories(retro3do_touch_tests PRIVATE src tests)
+    target_link_libraries(retro3do_touch_tests PRIVATE retro3do_core ${RETRO3DO_SDL_TARGET})
+    add_test(NAME retro3do_touch_tests COMMAND retro3do_touch_tests)
+
+    add_executable(retro3do_storage_tests
+        tests/test_main.cpp tests/test_save_memory.cpp
+        src/platform/save_memory.cpp src/platform/storage.cpp
+        src/platform/android_storage.cpp src/platform/emulator_thread.cpp)
+    target_include_directories(retro3do_storage_tests PRIVATE src tests)
+    target_link_libraries(retro3do_storage_tests PRIVATE
+        retro3do_core ${RETRO3DO_SDL_TARGET} Threads::Threads)
+    add_test(NAME retro3do_storage_tests COMMAND retro3do_storage_tests)
 endif()

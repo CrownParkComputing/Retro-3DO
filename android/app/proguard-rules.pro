@@ -16,6 +16,11 @@
 #   public *;
 #}
 
+# Called by name from C++, including folder access and saved RAM.
+-keep class com.crownparkcomputing.retro3do.Retro3DOActivity {
+    public static *;
+}
+
 -keep,includedescriptorclasses,allowoptimization class org.libsdl.app.SDLActivity {
     java.lang.String nativeGetHint(java.lang.String); # Java-side doesn't use this, so it gets minified, but C-side still tries to register it
     java.lang.String clipboardGetText();

@@ -71,7 +71,8 @@ const GuideStep kSteps[] = {
         ".bin with a .cue file beside it. Use images of discs you own.\n\n"
         "Put them in one folder of your own \xE2\x80\x94 Downloads will do, or make a "
         "folder called 3DO and keep them together. Subfolders inside it are "
-        "fine.\n\n"
+        "fine. If your folder has games and bios subfolders, choose their "
+        "parent folder: the app finds your discs and system ROMs together.\n\n"
         "Then point Retro-3DO at that folder. Android will ask you to confirm, "
         "and the app is given that folder and nothing else. You only do this "
         "once: the permission is remembered between launches, the app can never "
@@ -81,7 +82,7 @@ const GuideStep kSteps[] = {
         "there is nothing to do here.\n\n"
         "Drop new disc images into that folder and they appear. You can point "
         "the app somewhere else at any time.",
-        kGuideAndroid, kCyan, kActionChooseFolder, "Choose my games folder",
+        kGuideAndroid, kCyan, kActionChooseFolder, "Choose my library folder",
         kActionAddGame, "Import one game"
     },
     {
@@ -90,14 +91,16 @@ const GuideStep kSteps[] = {
         ".bin with a .cue file beside it. Use images of discs you own.\n\n"
         "Keep them in one folder \xE2\x80\x94 Downloads will do, or a folder of their "
         "own \xE2\x80\x94 and point Retro-3DO at it. It reads them where they sit, "
-        "subfolders included. Nothing is copied and nothing is moved.\n\n"
+        "subfolders included. If you have games and bios subfolders, choose "
+        "their parent folder to find both automatically. Nothing is copied "
+        "and nothing is moved.\n\n"
         "You can change the folder later, or add a single disc with {ADD} if "
         "you would rather not hand over a whole folder.",
         "Your games folder is already set and the app can see what is in it, so "
         "there is nothing to do here.\n\n"
         "Drop new disc images into that folder and they appear. You can point "
         "the app somewhere else at any time.",
-        kGuideDesktop, kCyan, kActionChooseFolder, "Choose my games folder",
+        kGuideDesktop, kCyan, kActionChooseFolder, "Choose my library folder",
         kActionAddGame, "Import one game"
     },
 
@@ -121,9 +124,12 @@ const GuideStep kSteps[] = {
         "shoulder buttons out of the way at the top.\n\n"
         "Hands differ. Every control can be dragged wherever you want it and "
         "the arrangement is remembered, so it is worth a minute now rather "
-        "than fighting it later.",
+        "than fighting it later.\n\n"
+        "Worth doing even with a game pad plugged in: the on-screen controls "
+        "stay available, and a pad can be unplugged, run flat or be left in "
+        "another room.",
         nullptr,
-        kGuideIos | kGuideAndroid, kViolet, kActionEditLayout,
+        kGuideEverywhere, kViolet, kActionEditLayout,
         "Arrange my controls", kActionNone, nullptr
     },
     {
@@ -153,7 +159,8 @@ const GuideStep kSteps[] = {
         "does this. It is written whenever you stop playing or leave the app, "
         "so you will not lose a save by closing it.\n\n"
         "Saves belong to the machine, not to a disc, exactly as they did on the "
-        "real console.",
+        "real console. On Android and desktop, your library's saves folder "
+        "contains nvram.bin, shared by every game.",
         nullptr,
         kGuideEverywhere, kAmber, kActionNone, nullptr, kActionNone, nullptr
     },

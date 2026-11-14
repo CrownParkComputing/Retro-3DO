@@ -1,8 +1,16 @@
 #include "storage.h"
 
 #include <SDL3/SDL.h>
+#include <cstdio>
+#if defined(_WIN32)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
+#include "core/console.h"
 #include "core/path.h"
+#include "platform/android_storage.h"
 #include "platform/platform.h"
 
 namespace retro3do {
@@ -115,6 +123,28 @@ bool Storage::is_directory(const std::string& path) {
 bool Storage::exists(const std::string& path) {
     SDL_PathInfo info;
     return SDL_GetPathInfo(path.c_str(), &info);
+}
+
+bool Storage::is_system_rom(const std::string& target) {
+    std::FILE* file = nullptr;
+    if (AndroidStorage::available()) {
+        const int fd = AndroidStorage::open_document(target);
+        if (fd < 0) return false;
+#if defined(_WIN32)
+        file = ::_fdopen(fd, "rb");
+        if (!file) ::_close(fd);
+#else
+        file = ::fdopen(fd, "rb");
+        if (!file) ::close(fd);
+#endif
+    } else {
+        file = std::fopen(target.c_str(), "rb");
+    }
+    if (!file) return false;
+    u8 head[32] = {};
+    const size_t count = std::fread(head, 1, sizeof head, file);
+    std::fclose(file);
+    return count == sizeof head && looks_like_system_rom(head, sizeof head);
 }
 
 }  // namespace retro3do

@@ -16,6 +16,10 @@ struct LibraryGame {
     std::string name;
     std::string target;
     std::vector<LibraryDisc> discs;
+    // A picture the user supplied, matched by name. Empty when they have not
+    // supplied one, which is the normal case and must look deliberate rather
+    // than broken.
+    std::string cover;
 };
 
 // The model deliberately knows nothing about SDL or Android SAF. A target can

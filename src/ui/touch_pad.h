@@ -36,7 +36,9 @@ public:
     // overwrite that preference: unplugging it restores the glass controls
     // exactly as the user left them.
     bool enabled() const { return visible_; }
-    bool visible() const { return visible_ && !gamepad_present_; }
+    // The editor must remain usable even with a physical pad connected or
+    // touch controls disabled. Editing does not change the saved preference.
+    bool visible() const { return editing_ || (visible_ && !gamepad_present_); }
     bool physical_gamepad_present() const { return gamepad_present_; }
 
     // A gamepad appearing is a good reason to get the controls out of the way,

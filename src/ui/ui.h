@@ -1,6 +1,7 @@
 // Retro-3DO front end: splash, library, settings and in-game quick menu.
 #pragma once
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -34,6 +35,10 @@ struct UiIntent {
     std::string disc_path;
     std::string disc_name;
     bool eject = false;
+    // Put the user's own system ROM back. The demonstration is loaded THROUGH
+    // load_bios and replaces whatever was in the machine, so leaving it has to
+    // ask for the real one again or the app has quietly forgotten it.
+    bool restore_bios = false;
     bool toggle_touch_controls = false;
     bool toggle_layout_edit = false;
     bool reset_touch_layout = false;
@@ -63,10 +68,22 @@ public:
     bool init(SDL_Window* window, SDL_Renderer* renderer);
     void hide_launcher();
     void show_launcher() { show_launcher_ = true; }
+    void set_game_session_available(bool available) { session_available_ = available; }
+    bool layout_preview_active() const {
+        return wizard_layout_edit_ || guide_layout_edit_;
+    }
 
     void set_remembered_bios(const std::string& name, const std::string& target);
     void set_remembered_disc(const std::string& name, const std::string& target);
     void set_game_library(const std::vector<LibraryGame>& games);
+    void set_bios_folder(const std::string& name, const std::string& target) {
+        bios_folder_name_ = name;
+        bios_folder_target_ = target;
+    }
+    void set_games_folder(const std::string& name, const std::string& target) {
+        games_folder_name_ = name;
+        games_folder_target_ = target;
+    }
     void configure_setup(bool complete, const std::string& bios_folder_name,
                          const std::string& bios_folder_target,
                          const std::string& games_folder_name,
@@ -99,8 +116,8 @@ public:
 
 private:
     enum class Page { Library, Settings, System, About };
-    enum class Browsing { None, Bios, Disc, GamesFolder };
-    enum class WizardStep { Welcome, Bios, Games, Finish };
+    enum class Browsing { None, Bios, Disc, BiosFolder, GamesFolder };
+    enum class WizardStep { Welcome, Bios, Games, Controls, Finish };
     enum class WizardPick { None, Bios, Games };
 
     void release_ui_texture();
@@ -120,6 +137,10 @@ private:
     // The shared walkthrough, drawn over whatever is behind it. The words come
     // from src/core/guide.cpp so that this and the iOS app say the same thing.
     void draw_guide(Console& console, UiIntent& intent);
+    // Cover art the user supplied, decoded once and kept. Keyed by path, so a
+    // card redrawn sixty times a second costs one lookup.
+    SDL_Texture* cover_texture(const std::string& path);
+    void forget_covers();
     void open_guide() { guide_open_ = true; guide_step_ = 0; guide_focus_ = true; }
     void draw_overlay(Console& console, bool emulating, double display_fps,
                       double emulated_fps, double frame_ms, u64 underruns,
@@ -143,6 +164,7 @@ private:
     bool initialised_ = false;
     bool show_launcher_ = true;
     bool setup_complete_ = true;
+    // Set by the application after a real disc starts successfully.
     bool session_available_ = false;
     bool splash_complete_ = false;
     bool quick_menu_ = false;
@@ -162,6 +184,8 @@ private:
     char search_buffer_[128] = {};
     char library_group_ = 0;
     WizardStep wizard_step_ = WizardStep::Welcome;
+    bool wizard_layout_edit_ = false;
+    bool guide_layout_edit_ = false;
     bool guide_open_ = false;
     bool guide_seen_ = false;
     int  guide_step_ = 0;
@@ -175,6 +199,7 @@ private:
     // having been clicked, sorts above it, and the guide comes back invisible
     // underneath. That is what "it does not return to the walkthrough" was.
     bool guide_focus_ = false;
+    std::map<std::string, SDL_Texture*> covers_;
     // A demonstration the walkthrough started. Its only way out is back to the
     // walkthrough, so the quick menu offers that instead of the library.
     bool guide_demo_ = false;

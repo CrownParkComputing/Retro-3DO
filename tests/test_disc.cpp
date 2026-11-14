@@ -6,6 +6,7 @@
 // bytes — which presents as a corrupt disc rather than a misread one.
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -21,7 +22,7 @@ namespace {
 
 const char* scratch(const char* name) {
     static std::string path;
-    path = std::string("/tmp/retro3do-test-") + name;
+    path = (std::filesystem::temp_directory_path() / (std::string("retro3do-test-") + name)).string();
     return path.c_str();
 }
 
@@ -290,14 +291,20 @@ TEST(raw_reads_hand_back_the_whole_sector) {
 // same ground as the path tests, because the two routes must agree.
 
 #include <fcntl.h>
-#if !defined(_WIN32)
+#if defined(_WIN32)
+#include <io.h>
+#else
 #include <unistd.h>
 #endif
 
 namespace {
 
 int open_read_fd(const char* path) {
+#if defined(_WIN32)
+    return ::_open(path, _O_RDONLY | _O_BINARY);
+#else
     return ::open(path, O_RDONLY);
+#endif
 }
 
 }  // namespace

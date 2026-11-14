@@ -5,6 +5,7 @@
 // matter because a settings file survives across builds and can be edited by
 // hand on a device with no debugger attached.
 #include <cstdio>
+#include <filesystem>
 
 #include "core/settings.h"
 #include "test_harness.h"
@@ -15,7 +16,7 @@ namespace {
 
 const char* scratch(const char* name) {
     static std::string path;
-    path = std::string("/tmp/retro3do-settings-") + name;
+    path = (std::filesystem::temp_directory_path() / (std::string("retro3do-settings-") + name)).string();
     return path.c_str();
 }
 

@@ -36,6 +36,8 @@ ARCHS="${ARCHS:-arm64;x86_64}"
 MACOS_MIN="${MACOS_MIN:-11.0}"
 TEAM_ID="${TEAM_ID:-}"
 BUILD_DIR="${BUILD_DIR:-$HERE/build/macos}"
+MARKETING_VERSION="${MARKETING_VERSION:-2.2.0}"
+BUILD_NUMBER="${BUILD_NUMBER:-18}"
 
 [ "$(uname -s)" = "Darwin" ] || {
     echo "FATAL: this script builds the macOS app and only runs on macOS." >&2
@@ -53,6 +55,8 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" -G "$GENERATOR" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_MIN" \
     -DRETRO3DO_MACOS_MIN="$MACOS_MIN" \
     -DRETRO3DO_APPLE_TEAM_ID="$TEAM_ID" \
+    -DRETRO3DO_MARKETING_VERSION="$MARKETING_VERSION" \
+    -DRETRO3DO_BUILD_NUMBER="$BUILD_NUMBER" \
     -DRETRO3DO_BUILD_TESTS=ON \
     -DRETRO3DO_USE_SYSTEM_SDL=OFF
 
@@ -67,9 +71,7 @@ echo "==> running the host test suite"
 # formality here: this is the first time the core has been compiled by Apple
 # clang for two architectures, and a portability fault shows up as a failing
 # test rather than as a crash on a user's Mac.
-( cd "$BUILD_DIR" && ctest --output-on-failure -C Release ) || {
-    echo "WARNING: host tests failed - do not ship this build." >&2
-}
+( cd "$BUILD_DIR" && ctest --output-on-failure -C Release )
 
 echo
 echo "Built: $APP"

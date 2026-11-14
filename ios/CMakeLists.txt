@@ -23,6 +23,7 @@ set(RETRO3DO_SWIFT_SOURCES
     Retro3DO/Screen.swift
     Retro3DO/Sound.swift
     Retro3DO/Pad.swift
+    Retro3DO/PadLayout.swift
     Retro3DO/Importer.swift
     Retro3DO/SettingsSheet.swift
     Retro3DO/GuideView.swift

@@ -29,8 +29,10 @@ class Console;
 class Ui;
 class Settings;
 class TouchPad;
+struct DocumentEntry;
 class FrameMailbox;
 class EmulatorThread;
+class SaveMemory;
 
 class App {
 public:
@@ -82,6 +84,8 @@ private:
     void save_library();
     void remember_game(const std::string& name, const std::string& target);
     void use_bios_folder(const std::string& name, const std::string& target);
+    void adopt_bios(std::vector<DocumentEntry> candidates);
+    void match_covers(const std::string& games_folder);
     void scan_games_folder(const std::string& name, const std::string& target);
     void load_nvram();
     void save_nvram();
@@ -104,6 +108,7 @@ private:
     std::unique_ptr<Settings> settings_;
     std::unique_ptr<TouchPad> touch_;
     std::unique_ptr<EmulatorThread> emulator_;
+    std::unique_ptr<SaveMemory> save_memory_;
 
     SDL_AudioStream* audio_stream_ = nullptr;
     bool audio_started_ = false;
@@ -133,6 +138,8 @@ private:
     int persisted_library_count_ = 0;
     // Reused across saves so a save does not allocate thirty-two kilobytes.
     std::vector<u8> nvram_scratch_;
+    bool nvram_unsaved_ = false;
+    u64 nvram_retry_after_ms_ = 0;
 
     std::string last_error_;
 };

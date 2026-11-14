@@ -9,6 +9,7 @@
 // clear refusal.
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <vector>
 
 #include "core/chd.h"
@@ -21,7 +22,7 @@ namespace {
 
 const char* scratch(const char* name) {
     static std::string path;
-    path = std::string("/tmp/retro3do-chd-") + name;
+    path = (std::filesystem::temp_directory_path() / (std::string("retro3do-chd-") + name)).string();
     return path.c_str();
 }
 

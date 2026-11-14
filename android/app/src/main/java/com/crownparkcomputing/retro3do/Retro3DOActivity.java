@@ -45,7 +45,7 @@ public class Retro3DOActivity extends SDLActivity {
     // Consumed once by the native setup wizard after the asynchronous system
     // picker returns. Keeping the actual URI avoids guessing which persisted
     // grant is new when the user selects a folder that was already granted.
-    private String pickedFolder;
+    private volatile String pickedFolder;
     private volatile String gpuDriverImportResult;
 
     @Override
@@ -116,6 +116,8 @@ public class Retro3DOActivity extends SDLActivity {
                 Uri tree = data.getData();
                 documents.onFolderGranted(tree);
                 pickedFolder = tree != null ? tree.toString() : null;
+            } else {
+                pickedFolder = "";
             }
             // A cancelled pick is not an error; the browser simply shows no new
             // folder and the user can try again.
@@ -139,6 +141,7 @@ public class Retro3DOActivity extends SDLActivity {
     public static void nativePickFolder() {
         final Retro3DOActivity self = instance;
         if (self == null) return;
+        self.pickedFolder = null;
         // The picker must be started from the UI thread; the emulator's thread
         // is what calls in here.
         self.runOnUiThread(new Runnable() {
@@ -161,12 +164,32 @@ public class Retro3DOActivity extends SDLActivity {
         if (instance == null || instance.pickedFolder == null) return "";
         String uri = instance.pickedFolder;
         instance.pickedFolder = null;
+        if (uri.isEmpty()) return "|"; // completed cancellation
         return instance.documents.displayNameOf(uri) + "|" + uri;
     }
 
     public static String nativeListFolder(String uri) {
         if (instance == null) return "";
         return instance.documents.listFolder(uri);
+    }
+
+    public static String nativeParentFolder(String uri) {
+        if (instance == null) return "";
+        return instance.documents.parentFolderOf(uri);
+    }
+
+    public static String nativeEnsureDirectory(String parent, String name) {
+        if (instance == null) return "";
+        try {
+            return instance.documents.ensureDirectory(parent, name);
+        } catch (Exception error) {
+            Log.w(TAG, "Could not create " + name, error);
+            return "";
+        }
+    }
+
+    public static int nativeOpenWriteDocument(String folder, String name) {
+        return instance == null ? -1 : instance.documents.openWriteDocument(folder, name);
     }
 
     public static int nativeOpenDocument(String uri) {

@@ -30,7 +30,8 @@ void clear_pending_exception(JNIEnv* e) {
 }
 
 std::string call_static_string(const char* name, const char* signature,
-                               const std::string* argument) {
+                               const std::string* argument,
+                               const std::string* second = nullptr) {
     JNIEnv* e = env();
     if (e == nullptr) return {};
 
@@ -50,7 +51,13 @@ std::string call_static_string(const char* name, const char* signature,
     jstring result = nullptr;
     if (argument != nullptr) {
         jstring arg = e->NewStringUTF(argument->c_str());
-        result = static_cast<jstring>(e->CallStaticObjectMethod(cls, method, arg));
+        if (second) {
+            jstring arg2 = e->NewStringUTF(second->c_str());
+            result = static_cast<jstring>(e->CallStaticObjectMethod(cls, method, arg, arg2));
+            e->DeleteLocalRef(arg2);
+        } else {
+            result = static_cast<jstring>(e->CallStaticObjectMethod(cls, method, arg));
+        }
         e->DeleteLocalRef(arg);
     } else {
         result = static_cast<jstring>(e->CallStaticObjectMethod(cls, method));
@@ -220,6 +227,38 @@ std::vector<DocumentEntry> AndroidStorage::list(const std::string& uri) {
         /*tagged=*/true);
 }
 
+std::string AndroidStorage::parent_folder(const std::string& uri) {
+    return call_static_string("nativeParentFolder",
+                               "(Ljava/lang/String;)Ljava/lang/String;", &uri);
+}
+
+std::string AndroidStorage::ensure_directory(const std::string& parent,
+                                            const std::string& name) {
+    return call_static_string("nativeEnsureDirectory",
+        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", &parent, &name);
+}
+
+int AndroidStorage::open_write_document(const std::string& folder,
+                                        const std::string& name) {
+    JNIEnv* e = env();
+    if (!e) return -1;
+    jclass cls = activity_class(e);
+    if (!cls) { clear_pending_exception(e); return -1; }
+    jmethodID method = e->GetStaticMethodID(cls, "nativeOpenWriteDocument",
+                                           "(Ljava/lang/String;Ljava/lang/String;)I");
+    int fd = -1;
+    if (method) {
+        jstring parent = e->NewStringUTF(folder.c_str());
+        jstring file = e->NewStringUTF(name.c_str());
+        fd = e->CallStaticIntMethod(cls, method, parent, file);
+        e->DeleteLocalRef(parent);
+        e->DeleteLocalRef(file);
+    }
+    clear_pending_exception(e);
+    e->DeleteLocalRef(cls);
+    return fd;
+}
+
 int AndroidStorage::open_document(const std::string& uri) {
     JNIEnv* e = env();
     if (e == nullptr) return -1;
@@ -305,6 +344,9 @@ std::vector<DocumentEntry> AndroidStorage::granted_roots() { return {}; }
 DocumentEntry AndroidStorage::consume_picked_folder() { return {}; }
 void AndroidStorage::forget_root(const std::string&) {}
 std::vector<DocumentEntry> AndroidStorage::list(const std::string&) { return {}; }
+std::string AndroidStorage::parent_folder(const std::string&) { return {}; }
+std::string AndroidStorage::ensure_directory(const std::string&, const std::string&) { return {}; }
+int AndroidStorage::open_write_document(const std::string&, const std::string&) { return -1; }
 int AndroidStorage::open_document(const std::string&) { return -1; }
 void AndroidStorage::pick_gpu_driver_package() {}
 GpuDriverImport AndroidStorage::consume_gpu_driver_import() { return {}; }

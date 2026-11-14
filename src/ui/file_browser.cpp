@@ -70,7 +70,29 @@ void FileBrowser::open_folder(const std::string& title) {
 }
 
 void FileBrowser::open(const std::string& title,
-                       std::vector<std::string> extensions) {
+                       std::vector<std::string> extensions,
+                       const std::string& remembered_file,
+                       const std::string& fallback_folder,
+                       const std::vector<std::string>& preferred_subfolders) {
+    disc_images_only_ = false;
+    open_impl(title, std::move(extensions), remembered_file, fallback_folder,
+              preferred_subfolders);
+}
+
+void FileBrowser::open_disc(const std::string& title, const std::string& remembered_file,
+                             const std::string& library_folder) {
+    disc_images_only_ = true;
+    const std::string remembered = !remembered_file.empty() && Storage::is_system_rom(remembered_file)
+        ? std::string() : remembered_file;
+    open_impl(title, {".iso", ".bin", ".cue", ".img", ".chd"}, remembered,
+              library_folder, {"games", "discs"});
+}
+
+void FileBrowser::open_impl(const std::string& title,
+                            std::vector<std::string> extensions,
+                            const std::string& remembered_file,
+                            const std::string& fallback_folder,
+                            const std::vector<std::string>& preferred_subfolders) {
     open_ = true;
     choosing_folder_ = false;
     title_ = title;
@@ -82,27 +104,64 @@ void FileBrowser::open(const std::string& title,
     using_documents_ = AndroidStorage::available();
 
     if (using_documents_) {
-        // Start at the first folder the user has granted. If they have granted
-        // none, the list is empty and the window shows the "add a folder"
-        // prompt instead of a confusing blank listing.
         const std::vector<DocumentEntry> roots = AndroidStorage::granted_roots();
-        directory_ = roots.empty() ? std::string() : roots.front().uri;
+        directory_ = remembered_file.empty() ? std::string()
+            : AndroidStorage::parent_folder(remembered_file);
+        const bool using_fallback = directory_.empty();
+        if (directory_.empty()) directory_ = fallback_folder;
+        if (directory_.empty() && !roots.empty()) directory_ = roots.front().uri;
         entries_.clear();
         error_.clear();
         if (!directory_.empty()) {
             navigate_to(directory_);
+            if (using_fallback) prefer_subfolder(preferred_subfolders);
         }
         return;
     }
 
+    const std::string remembered_folder = Storage::is_directory(remembered_file)
+        ? remembered_file : Storage::parent_of(remembered_file);
+    if (!remembered_folder.empty() && Storage::is_directory(remembered_folder)) {
+        navigate_to(remembered_folder);
+        return;
+    }
+    if (!fallback_folder.empty() && Storage::is_directory(fallback_folder)) {
+        navigate_to(fallback_folder);
+        prefer_subfolder(preferred_subfolders);
+        return;
+    }
     const std::vector<StorageLocation> roots = Storage::browse_roots();
     navigate_to(roots.empty() ? std::string("/") : roots.front().path);
+}
+
+void FileBrowser::prefer_subfolder(const std::vector<std::string>& names) {
+    for (const std::string& name : names) {
+        for (const Entry& entry : entries_) {
+            if (!entry.is_directory || lowercased(entry.name) != lowercased(name)) continue;
+            // SAF supplies the actual child URI; it cannot be joined as a path.
+            const std::string target = using_documents_ ? entry.uri
+                : Storage::join(directory_, entry.name);
+            navigate_to(target);
+            return;
+        }
+    }
 }
 
 void FileBrowser::close() {
     open_ = false;
     entries_.clear();
     error_.clear();
+}
+
+bool FileBrowser::accepts_entry(const std::string& name, const std::string& target,
+                                 bool is_directory) const {
+    const std::string lower = lowercased(name);
+    if (is_directory) {
+        return !disc_images_only_ || (lower != "bios" && lower != "saves");
+    }
+    if (!has_extension(name, extensions_)) return false;
+    return !disc_images_only_ ||
+        (lower != "nvram.bin" && !Storage::is_system_rom(target));
 }
 
 void FileBrowser::navigate_to(const std::string& directory) {
@@ -112,7 +171,7 @@ void FileBrowser::navigate_to(const std::string& directory) {
 
     if (using_documents_) {
         for (const DocumentEntry& child : AndroidStorage::list(directory)) {
-            if (child.is_directory || has_extension(child.name, extensions_)) {
+            if (accepts_entry(child.name, child.uri, child.is_directory)) {
                 entries_.push_back(Entry{child.name, child.is_directory, child.uri});
             }
         }
@@ -133,7 +192,7 @@ void FileBrowser::navigate_to(const std::string& directory) {
     }
 
     for (auto& entry : state.entries) {
-        if (entry.second || has_extension(entry.first, extensions_)) {
+        if (accepts_entry(entry.first, Storage::join(directory, entry.first), entry.second)) {
             entries_.push_back(Entry{entry.first, entry.second, std::string()});
         }
     }

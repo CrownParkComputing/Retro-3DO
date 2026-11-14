@@ -1,4 +1,5 @@
 #include "disc.h"
+#include "file_io.h"
 
 extern "C" {
 #include <libchdr/chd.h>
@@ -232,16 +233,16 @@ bool Disc::open_fd(int fd, const std::string& display_name) {
         last_error_ =
             "A cue sheet cannot be opened by descriptor; open the image it "
             "names instead: " + display_name;
-        ::close(fd);
+        file_io::close_descriptor(fd);
         return false;
     }
 
     // fdopen adopts the descriptor: closing the FILE* closes it, so ownership
     // passes here and the caller must not close it again.
-    file_ = ::fdopen(fd, "rb");
+    file_ = file_io::from_descriptor(fd, "rb");
     if (file_ == nullptr) {
         last_error_ = "Could not read the descriptor for: " + display_name;
-        ::close(fd);
+        file_io::close_descriptor(fd);
         return false;
     }
     path_ = display_name;

@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include "demo_rom.h"
+#include "file_io.h"
 
 #if !defined(_WIN32)
 #include <unistd.h>
@@ -97,6 +98,14 @@ Console::~Console() = default;
 
 bool looks_like_system_rom(const u8* head, std::size_t len) {
     if (head == nullptr || len < 32) return false;
+    // Retail Panasonic/Goldstar firmware starts with eight MOV r1,r1 words,
+    // then falls through to its startup code, rather than branching at reset.
+    static constexpr u8 retail_word[] = {0xE1, 0xA0, 0x10, 0x01};
+    bool retail = true;
+    for (std::size_t i = 0; i < 32; ++i) {
+        if (head[i] != retail_word[i % 4]) { retail = false; break; }
+    }
+    if (retail) return true;
     if (head[0] != 0xEA) return false;          // the reset vector must branch
     int vectors = 0;
     for (std::size_t word = 0; word < 8; ++word) {
@@ -198,10 +207,10 @@ bool Console::load_bios_fd(int fd, const std::string& display_name) {
     }
 
     // fdopen adopts the descriptor, so closing the FILE* closes it too.
-    std::FILE* file = ::fdopen(fd, "rb");
+    std::FILE* file = file_io::from_descriptor(fd, "rb");
     if (file == nullptr) {
         last_error_ = "Could not read " + display_name;
-        ::close(fd);
+        file_io::close_descriptor(fd);
         return false;
     }
 

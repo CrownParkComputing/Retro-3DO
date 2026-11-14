@@ -1,0 +1,98 @@
+name: Desktop release builds
+
+on:
+  push:
+    branches: [ios-shelf]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: retro3do-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+          - os: windows-latest
+            platform: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libasound2-dev libpulse-dev libudev-dev libdbus-1-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev libgl1-mesa-dev
+      - name: Configure release
+        run: cmake -S . -B build-release -DRETRO3DO_BUILD_TESTS=ON -DRETRO3DO_USE_SYSTEM_SDL=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+      - name: Build release and checks
+        run: cmake --build build-release --config Release --parallel 4
+      - name: Test
+        run: ctest --test-dir build-release -C Release --output-on-failure
+      - name: Package release
+        shell: bash
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: |
+          python - <<'PY'
+          import os, pathlib, shutil, tarfile
+          platform = os.environ['RELEASE_PLATFORM']
+          name = 'Retro-3DO-2.2.0-' + platform
+          package = pathlib.Path('package') / name
+          package.mkdir(parents=True)
+          windows = platform.startswith('windows')
+          binary = pathlib.Path('build-release/Release/retro3do.exe' if windows else 'build-release/retro3do')
+          shutil.copy2(binary, package / binary.name)
+          shutil.copy2('assets/branding/retro3do-splash.bmp', package / 'retro3do-splash.bmp')
+          for source in ['LICENSE', 'NOTICE', 'docs/PROVENANCE.md', 'docs/THIRD_PARTY.md']:
+              shutil.copy2(source, package / pathlib.Path(source).name)
+          licenses = package / 'licenses'
+          licenses.mkdir()
+          for label, source in [('SDL', 'third_party/SDL/LICENSE.txt'), ('ImGui', 'third_party/imgui/LICENSE.txt'), ('libchdr', 'third_party/libchdr/LICENSE.txt')]:
+              shutil.copy2(source, licenses / (label + '.txt'))
+          if windows:
+              shutil.make_archive('package/' + name, 'zip', 'package', name)
+          else:
+              launcher = package / 'run.sh'
+              launcher.write_text('#!/bin/sh\ncd "$(dirname "$0")"\nexec ./retro3do "$@"\n')
+              launcher.chmod(0o755)
+              with tarfile.open('package/' + name + '.tar.gz', 'w:gz') as archive:
+                  archive.add(package, arcname=name)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retro3do-${{ matrix.platform }}
+          path: |
+            package/*.zip
+            package/*.tar.gz
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Build and test universal macOS application
+        run: ./macos/build-macos.sh
+      - name: Package universal application
+        run: |
+          mkdir -p package
+          app=$(find macos/build/macos -name Retro-3DO.app -type d -print -quit)
+          test -n "$app"
+          lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/Retro-3DO"
+          ditto -c -k --keepParent "$app" package/Retro-3DO-2.2.0-macos-universal-unsigned.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retro3do-macos-universal
+          path: package/*.zip
+          if-no-files-found: error

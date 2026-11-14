@@ -7,6 +7,7 @@ import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
+import android.os.Build;
 import android.provider.DocumentsContract;
 import android.util.Log;
 
@@ -14,6 +15,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -146,6 +149,57 @@ public final class DocumentAccess {
         }
     }
 
+    /** Resolve the containing folder without interpreting opaque document IDs. */
+    public String parentFolderOf(String uri) {
+        try {
+            Uri document = Uri.parse(uri);
+            if (!DocumentsContract.isTreeUri(document)) return "";
+            if (!DocumentsContract.isDocumentUri(activity, document)) return uri;
+            if (Build.VERSION.SDK_INT >= 26) {
+                try {
+                    DocumentsContract.Path path = DocumentsContract.findDocumentPath(
+                            activity.getContentResolver(), document);
+                    if (path != null && path.getPath().size() >= 2) {
+                        List<String> ids = path.getPath();
+                        return DocumentsContract.buildDocumentUriUsingTree(
+                                document, ids.get(ids.size() - 2)).toString();
+                    }
+                } catch (Exception unsupported) {
+                    // Some providers do not implement path lookup.
+                }
+            }
+            String wanted = DocumentsContract.getDocumentId(document);
+            String root = DocumentsContract.getTreeDocumentId(document);
+            if (root.equals(wanted)) return document.toString();
+            List<String> pending = new ArrayList<>();
+            Set<String> visited = new HashSet<>();
+            pending.add(root);
+            visited.add(root);
+            for (int index = 0; index < pending.size() && index < 1024; ++index) {
+                String parent = pending.get(index);
+                Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(document, parent);
+                try (Cursor cursor = activity.getContentResolver().query(children,
+                        new String[] { DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                                       DocumentsContract.Document.COLUMN_MIME_TYPE },
+                        null, null, null)) {
+                    if (cursor == null) continue;
+                    while (cursor.moveToNext()) {
+                        String child = cursor.getString(0);
+                        if (wanted.equals(child)) {
+                            return DocumentsContract.buildDocumentUriUsingTree(
+                                    document, parent).toString();
+                        }
+                        if (DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(1)) &&
+                                pending.size() < 1024 && visited.add(child)) pending.add(child);
+                    }
+                }
+            }
+        } catch (Exception error) {
+            Log.w(TAG, "Could not locate document parent: " + uri, error);
+        }
+        return "";
+    }
+
     /**
      * List one folder. Each entry is "D|name|documentUri" or "F|name|documentUri",
      * newline separated — flat text because it crosses to C++ and a string is
@@ -230,6 +284,22 @@ public final class DocumentAccess {
             return pfd.detachFd();
         } catch (Exception e) {
             Log.w(TAG, "Could not open " + documentUri, e);
+            return -1;
+        }
+    }
+
+    public int openWriteDocument(String folder, String name) {
+        try {
+            Uri parent = folderDocumentUri(folder);
+            Uri file = findChild(parent, name);
+            if (file == null) file = DocumentsContract.createDocument(
+                    activity.getContentResolver(), parent, "application/octet-stream", name);
+            if (file == null) return -1;
+            ParcelFileDescriptor descriptor = activity.getContentResolver()
+                    .openFileDescriptor(file, "rwt");
+            return descriptor == null ? -1 : descriptor.detachFd();
+        } catch (Exception error) {
+            Log.w(TAG, "Could not save " + name, error);
             return -1;
         }
     }
