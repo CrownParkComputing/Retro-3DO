@@ -1,0 +1,87 @@
+name: Verify and package signed macOS release
+on:
+  push:
+    branches: [macos-final-signing]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Draft release holding the locally signed app
+        default: macos-2.2.0-validation
+      source_sha256:
+        description: SHA-256 of the locally signed archive
+        default: d1f0e8badd16ad544262f221d9b6c814f47b9b238907e927475ff9c824b56b18
+permissions:
+  contents: read
+concurrency:
+  group: retro3do-macos-finalize-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: macos-26
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_RELEASE: ${{ inputs.release_tag || 'macos-2.2.0-validation' }}
+      EXPECTED_SHA256: ${{ inputs.source_sha256 || 'd1f0e8badd16ad544262f221d9b6c814f47b9b238907e927475ff9c824b56b18' }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download locally signed app
+        run: |
+          mkdir -p incoming app package/notarization
+          gh release download "$SOURCE_RELEASE" --pattern '*macos-signed-upload.zip' --dir incoming
+          archive=$(find incoming -maxdepth 1 -name '*macos-signed-upload.zip' -print -quit)
+          test -n "$archive"
+          echo "$EXPECTED_SHA256  $archive" | shasum -a 256 -c -
+          ditto -x -k "$archive" app
+      - name: Verify both architectures and Apple code signature
+        run: |
+          app=app/Retro-3DO.app
+          lipo "$app/Contents/MacOS/Retro-3DO" -verify_arch arm64 x86_64
+          codesign --verify --all-architectures --deep --strict --verbose=4 "$app" 2>&1 | tee package/notarization/codesign-verify.txt
+          codesign -d --verbose=4 "$app" 2> package/notarization/signature.txt
+          cat package/notarization/signature.txt
+          grep -q 'TeamIdentifier=88A3T9K9C5' package/notarization/signature.txt
+          grep -q 'Authority=Developer ID Application: Jonathan Whittingham (88A3T9K9C5)' package/notarization/signature.txt
+          grep -q 'runtime' package/notarization/signature.txt
+          grep -q 'Timestamp=' package/notarization/signature.txt
+          codesign -d -r- "$app" 2> package/notarization/requirements.txt
+      - name: Staple Apple's ticket and assess Gatekeeper
+        run: |
+          app=app/Retro-3DO.app
+          # Notarization is submitted locally. This runner receives no signing
+          # keys or notary credentials; tickets are retrieved from Apple.
+          stapled=false
+          for attempt in {1..12}; do
+            if xcrun stapler staple "$app" > package/notarization/staple.txt 2>&1; then
+              stapled=true
+              break
+            fi
+            cat package/notarization/staple.txt
+            sleep 60
+          done
+          test "$stapled" = true
+          xcrun stapler validate "$app" 2>&1 | tee package/notarization/staple-validate.txt
+          codesign --verify --all-architectures --deep --strict --verbose=4 "$app"
+          spctl --assess --type execute --verbose=4 "$app" 2>&1 | tee package/notarization/gatekeeper.txt
+      - name: Launch the signed app
+        run: |
+          executable="$PWD/app/Retro-3DO.app/Contents/MacOS/Retro-3DO"
+          "$executable" > package/notarization/launch.txt 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          sleep 10
+          kill -0 "$app_pid"
+          screencapture -x package/notarization/macos-launch.png
+          echo 'Signed app remained running after launch' >> package/notarization/launch.txt
+      - name: Package the stapled universal app
+        run: |
+          version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' app/Retro-3DO.app/Contents/Info.plist)
+          ditto -c -k --keepParent app/Retro-3DO.app "package/Retro-3DO-$version-macos-universal.zip"
+          (cd package && shasum -a 256 *.zip > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retro3do-macos-notarised
+          path: package
+          if-no-files-found: error
