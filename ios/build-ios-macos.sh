@@ -107,7 +107,7 @@ if [ "$ARCHIVE" = "1" ]; then
     EXPORT_DIR="$BUILD_DIR/export"
     echo "==> archiving"
     xcodebuild -project "$BUILD_DIR/Retro3DO.xcodeproj" \
-        -scheme retro3do -configuration Release \
+        -scheme Retro3DO -configuration Release \
         -destination "$DESTINATION" \
         -archivePath "$ARCHIVE_PATH" archive
 

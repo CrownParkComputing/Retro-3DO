@@ -49,11 +49,15 @@ set(RETRO3DO_BRIDGE_SOURCES
 add_executable(Retro3DO MACOSX_BUNDLE
     ${RETRO3DO_SWIFT_SOURCES}
     ${RETRO3DO_BRIDGE_SOURCES}
-    ${CMAKE_SOURCE_DIR}/assets/apple/Assets.xcassets
 )
 
-set_source_files_properties(${CMAKE_SOURCE_DIR}/assets/apple/Assets.xcassets
-    PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+# The icon. actool is part of Xcode and only runs under the Xcode generator, so
+# the catalog is attached there and skipped elsewhere: a Ninja build still
+# produces a running app, it just has a generic icon. That is the right way
+# round — a missing icon must not stop anyone building and testing.
+if(CMAKE_GENERATOR STREQUAL "Xcode")
+    target_sources(Retro3DO PRIVATE ${CMAKE_SOURCE_DIR}/assets/apple/Assets.xcassets)
+endif()
 
 target_include_directories(Retro3DO PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/bridge
@@ -80,8 +84,13 @@ target_link_libraries(Retro3DO PRIVATE
 
 set_target_properties(Retro3DO PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
-    MACOSX_BUNDLE_EXECUTABLE_NAME "Retro3DO"
-    MACOSX_BUNDLE_BUNDLE_NAME "Retro3DO"
+    # The CMake target is Retro3DO because that is the Xcode scheme name, but
+    # the product keeps the name it has always shipped under. Renaming the
+    # bundle would change CFBundleName on a live App Store record and break
+    # every script that looks for Retro-3DO.app.
+    OUTPUT_NAME "Retro-3DO"
+    MACOSX_BUNDLE_EXECUTABLE_NAME "Retro-3DO"
+    MACOSX_BUNDLE_BUNDLE_NAME "Retro-3DO"
     MACOSX_BUNDLE_GUI_IDENTIFIER "${RETRO3DO_BUNDLE_ID}"
     MACOSX_BUNDLE_BUNDLE_VERSION "${RETRO3DO_BUILD_NUMBER}"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${RETRO3DO_MARKETING_VERSION}"
