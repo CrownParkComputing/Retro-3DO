@@ -133,6 +133,15 @@ void r3_pad(uint32_t mask);
 void r3_set_region(bool pal);
 bool r3_region_is_pal(void);
 
+// ------------------------------------------------------------------- guide --
+
+// The first-run walkthrough. The words live in the core so that iOS, Android
+// and the desktop all say the same thing; only the name of the control that
+// adds content differs, and `add_control` supplies it.
+int r3_guide_count(void);
+int r3_guide_title(int step, char *out, int out_len);
+int r3_guide_body(int step, const char *add_control, char *out, int out_len);
+
 // --------------------------------------------------------------- diagnostics --
 
 // The last failure, phrased for a person rather than a log. Never NULL.

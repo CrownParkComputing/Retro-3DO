@@ -1,0 +1,105 @@
+#include "guide.h"
+
+#include <cstring>
+
+namespace retro3do {
+namespace {
+
+// Written for somebody who has never used an emulator and does not know what a
+// BIOS is. Nothing here names a file format unless the user has to type one,
+// and no sentence explains the machine's internals for their own sake.
+const GuideStep kSteps[] = {
+    {
+        "Welcome to Retro-3DO",
+        "This is a 3DO Interactive Multiplayer, the CD console Panasonic and "
+        "Goldstar sold from 1993. The app is the machine; the discs are yours.\n\n"
+        "It opens on a shelf. Everything you can play is a tile on it, and "
+        "tapping a tile starts it. There is nothing else to learn, and there is "
+        "no account and no sign-in anywhere in the app."
+    },
+    {
+        "Start with the demo",
+        "The first tile is a demonstration we wrote ourselves. It needs nothing "
+        "from you: no disc, no system ROM, no setup.\n\n"
+        "Start it and you will see the machine test its own parts — the "
+        "processor, the video hardware, the sound chip and the controller — and "
+        "then let you move a marker around with the pad. It is the quickest way "
+        "to see whether everything is working."
+    },
+    {
+        "Add your own discs",
+        "Choose {ADD} and pick a disc image you already own. It can be anywhere "
+        "your device can reach.\n\n"
+        "The app works out what you gave it. A 3DO disc is added to the shelf "
+        "under its own name, taken from the disc itself rather than the file "
+        "name. Anything else is refused with one line saying so, and nothing is "
+        "changed."
+    },
+    {
+        "About the system ROM",
+        "The demo plays without one, but a real 3DO game needs the console's "
+        "own start-up software, which we are not allowed to include.\n\n"
+        "If you have it — most people take it from a console they own — add it "
+        "the same way you add a disc, with {ADD}. The app recognises it on "
+        "sight and remembers it. You only ever do this once, and until you do, "
+        "your discs will say they need it."
+    },
+    {
+        "The controls",
+        "The 3DO pad is drawn either side of the picture, never over it: the "
+        "directional cross on one side, and A, B and C on the other.\n\n"
+        "P and X are the buttons marked P and X on the real pad — most games "
+        "use P to pause and start. L and R are the shoulder buttons.\n\n"
+        "Touch the picture to hide the controls and see the game on its own. "
+        "Touch it again to bring them back."
+    },
+    {
+        "Your games save themselves",
+        "The 3DO kept saved games in a small memory inside the console, and so "
+        "does this. It is written whenever you stop playing or leave the app, "
+        "so you will not lose a save by closing it.\n\n"
+        "Saves belong to the machine, not to a disc, exactly as they did on the "
+        "real console."
+    },
+    {
+        "If something runs too fast",
+        "A few discs were made for European televisions and run at a different "
+        "speed. If a game feels too fast or too slow, change the television "
+        "setting from 60 Hz to 50 Hz.\n\n"
+        "That is the only setting most people ever need. You can read this "
+        "guide again whenever you like — it is the first thing in Settings."
+    },
+};
+
+}  // namespace
+
+const GuideStep* guide_steps() { return kSteps; }
+
+std::size_t guide_step_count() { return sizeof(kSteps) / sizeof(kSteps[0]); }
+
+void guide_body(const char* body, const char* add_control, char* out, std::size_t out_len) {
+    if (out == nullptr || out_len == 0) return;
+    out[0] = '\0';
+    if (body == nullptr) return;
+    const char* token = "{ADD}";
+    const std::size_t token_len = std::strlen(token);
+    const char* replacement = add_control != nullptr ? add_control : "Add";
+    const std::size_t replacement_len = std::strlen(replacement);
+
+    std::size_t written = 0;
+    for (const char* p = body; *p != '\0';) {
+        const char* hit = std::strstr(p, token);
+        const char* copy_end = hit != nullptr ? hit : p + std::strlen(p);
+        for (const char* q = p; q < copy_end && written + 1 < out_len; ++q) {
+            out[written++] = *q;
+        }
+        if (hit == nullptr) break;
+        for (std::size_t i = 0; i < replacement_len && written + 1 < out_len; ++i) {
+            out[written++] = replacement[i];
+        }
+        p = hit + token_len;
+    }
+    out[written] = '\0';
+}
+
+}  // namespace retro3do

@@ -27,39 +27,61 @@ struct Session: View {
             // height. Measuring the container and saying the sizes out loud
             // removes the question.
             GeometryReader { geo in
-                // The columns are the letterbox, not a fixed width. A 4:3
-                // picture at full height leaves (width - height * 4/3) / 2 on
-                // each side and nothing else is doing anything with it, so the
-                // controls take exactly that and the picture keeps its full
-                // height. A fixed 190pt was costing 13% of the screen: the
-                // picture measured 1259px across where 1608 was available.
-                let margin = (geo.size.width - geo.size.height * 4.0 / 3.0) / 2
-                let side = max(120, min(190, margin))
-                HStack(spacing: 0) {
-                    if controlsVisible {
-                        Pad.Directions(mask: $mask, unit: side)
-                            .frame(width: side, height: geo.size.height)
+                // Two shapes, chosen by the window rather than the device. An
+                // iPad can be either way up and can be a split-screen sliver,
+                // so asking "is this taller than it is wide" is the only
+                // question that stays true.
+                let portrait = geo.size.height > geo.size.width
+                if portrait {
+                    // The picture takes the width and the controls sit under
+                    // it, which is the only arrangement where a 4:3 picture in
+                    // a tall window keeps any size at all.
+                    let picture = geo.size.width * 3.0 / 4.0
+                    let bar = max(150, min(260, (geo.size.height - picture) * 0.8))
+                    VStack(spacing: 0) {
+                        Screen()
+                            .frame(width: geo.size.width, height: picture)
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) { controlsVisible.toggle() }
+                            }
+                        if controlsVisible {
+                            HStack {
+                                Pad.Directions(mask: $mask, unit: bar * 0.8)
+                                Spacer(minLength: 0)
+                                Pad.Actions(mask: $mask, unit: bar * 0.62)
+                            }
+                            .padding(.horizontal, 28)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .transition(.opacity)
-                    }
-                    Screen()
-                        .frame(width: geo.size.width - (controlsVisible ? side * 2 : 0),
-                               height: geo.size.height)
-                        .onTapGesture {
-                            withAnimation(.easeInOut(duration: 0.2)) { controlsVisible.toggle() }
                         }
-                    if controlsVisible {
-                        Pad.Actions(mask: $mask, unit: side)
-                            .frame(width: side, height: geo.size.height)
-                            .transition(.opacity)
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                } else {
+                    // The columns are the letterbox a 4:3 picture leaves at
+                    // full height, so the controls take exactly the space
+                    // nothing else wants and the picture keeps its height.
+                    let margin = (geo.size.width - geo.size.height * 4.0 / 3.0) / 2
+                    let side = max(120, min(190, margin))
+                    HStack(spacing: 0) {
+                        if controlsVisible {
+                            Pad.Directions(mask: $mask, unit: side)
+                                .frame(width: side, height: geo.size.height)
+                                .transition(.opacity)
+                        }
+                        Screen()
+                            .frame(width: geo.size.width - (controlsVisible ? side * 2 : 0),
+                                   height: geo.size.height)
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) { controlsVisible.toggle() }
+                            }
+                        if controlsVisible {
+                            Pad.Actions(mask: $mask, unit: side)
+                                .frame(width: side, height: geo.size.height)
+                                .transition(.opacity)
+                        }
                     }
                 }
             }
-            // Vertical only. Ignoring the horizontal inset too let the D-pad
-            // slide under the Dynamic Island, which in landscape sits along
-            // the left edge exactly where the left chevron is: the screenshot
-            // showed the cross with its left arm sliced off. The picture gives
-            // up the inset instead, which it can afford and the controls
-            // cannot.
             .ignoresSafeArea(edges: .vertical)
 
             if controlsVisible {

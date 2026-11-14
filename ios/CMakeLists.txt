@@ -25,6 +25,7 @@ set(RETRO3DO_SWIFT_SOURCES
     Retro3DO/Pad.swift
     Retro3DO/Importer.swift
     Retro3DO/SettingsSheet.swift
+    Retro3DO/GuideView.swift
     Retro3DO/Engine.swift
     Retro3DO/Theme.swift
 )

@@ -157,6 +157,23 @@ int main(int argc, char** argv) {
             return fail("an imported disc did not reach the library");
     }
 
+    // The walkthrough is shared with Android and the desktop, so a mistake in
+    // the token substitution would be wrong in three apps at once.
+    const int steps = r3_guide_count();
+    printf("guide has %d steps\n", steps);
+    if (steps < 5) return fail("the guide lost its steps");
+    for (int i = 0; i < steps; ++i) {
+        char title[128], body[2048];
+        r3_guide_title(i, title, sizeof title);
+        r3_guide_body(i, "the + tile", body, sizeof body);
+        if (title[0] == 0 || body[0] == 0) return fail("a guide step is empty");
+        if (strstr(body, "{ADD}") != NULL) return fail("a guide step still has {ADD} in it");
+    }
+    char body[2048];
+    r3_guide_body(2, "the + tile", body, sizeof body);
+    if (strstr(body, "the + tile") == NULL) return fail("the control name never reached the text");
+    printf("guide step 3 reads: %.58s...\n", body);
+
     printf("library holds %d disc(s)\n", r3_library_count());
 
     r3_stop();

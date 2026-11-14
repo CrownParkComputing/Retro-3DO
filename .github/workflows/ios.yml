@@ -12,6 +12,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      screenshots:
+        description: Also photograph the app on simulators
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -50,6 +55,12 @@ jobs:
     name: iOS simulator screenshots
     runs-on: macos-26
     timeout-minutes: 60
+    # Manual only. macOS runners bill at ten times the Linux rate and this job
+    # boots two simulators, so running it on every push was the expensive half
+    # of the pipeline for something nobody reads most pushes. Ask for it when
+    # the screens have actually changed:
+    #   gh workflow run ios.yml --ref ios-shelf -f screenshots=true
+    if: github.event_name == 'workflow_dispatch' && inputs.screenshots
     steps:
       - uses: actions/checkout@v5
         with:

@@ -12,6 +12,7 @@
 #include "console.h"
 #include "frame_mailbox.h"
 #include "game_library.h"
+#include "guide.h"
 
 using namespace retro3do;
 
@@ -548,4 +549,23 @@ const char* r3_last_error(void) {
 int r3_fps_x100(void) {
     if (g == nullptr) return 0;
     return g->fps_x100.load(std::memory_order_relaxed);
+}
+
+// ===================================================================== guide ==
+// No Bridge state: the steps are compiled-in constants, so these work before
+// r3_start() and cannot fail.
+
+int r3_guide_count(void) { return static_cast<int>(guide_step_count()); }
+
+int r3_guide_title(int step, char* out, int out_len) {
+    if (step < 0 || step >= r3_guide_count()) return 0;
+    return copy_out(guide_steps()[step].title, out, out_len);
+}
+
+int r3_guide_body(int step, const char* add_control, char* out, int out_len) {
+    if (step < 0 || step >= r3_guide_count()) return 0;
+    if (out == nullptr || out_len <= 0) return 0;
+    guide_body(guide_steps()[step].body, add_control, out,
+               static_cast<std::size_t>(out_len));
+    return static_cast<int>(std::strlen(out));
 }

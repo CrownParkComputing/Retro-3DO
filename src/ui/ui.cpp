@@ -1,5 +1,7 @@
 #include "ui.h"
 
+#include "core/guide.h"
+
 #include <SDL3/SDL.h>
 
 #include <algorithm>
@@ -508,6 +510,14 @@ UiIntent Ui::build(Console& console, bool emulating, double display_fps,
         }
     }
 
+    // Last, so it sits over everything, and only once the splash has gone --
+    // a walkthrough appearing under a splash screen would be read by nobody.
+    if (splash_complete_ && !guide_seen_ && setup_complete_) {
+        guide_seen_ = true;
+        open_guide();
+    }
+    draw_guide();
+
     ImGui::Render();
     return intent;
 }
@@ -785,6 +795,7 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
     }
     nav_button("SETTINGS", Page::Settings);
     nav_button("SYSTEM", Page::System);
+    if (ImGui::Button("GUIDE", ImVec2(action_width, 40.0f * scale_))) open_guide();
     nav_button("ABOUT", Page::About);
     if (session_available_) {
         next_nav();
@@ -1526,6 +1537,80 @@ void Ui::render(SDL_Renderer* renderer) {
     SDL_RenderTexture(renderer, ui_texture_, nullptr, nullptr);
     SDL_SetRenderDrawColorFloat(renderer, previous_colour.r, previous_colour.g,
                                previous_colour.b, previous_colour.a);
+}
+
+// ---------------------------------------------------------------------------
+// The walkthrough
+//
+// Shown once on a first run and reachable from GUIDE for ever after. It is
+// modal on purpose: a first-time user being talked through the app should not
+// be able to half-start a game underneath it.
+// ---------------------------------------------------------------------------
+void Ui::draw_guide() {
+    if (!guide_open_) return;
+
+    const int steps = static_cast<int>(guide_step_count());
+    if (guide_step_ < 0 || guide_step_ >= steps) { guide_open_ = false; return; }
+
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::Begin("##guide_backdrop", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                     ImGuiWindowFlags_NoSavedSettings);
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    draw->AddRectFilled(viewport->WorkPos,
+                        ImVec2(viewport->WorkPos.x + viewport->WorkSize.x,
+                               viewport->WorkPos.y + viewport->WorkSize.y),
+                        IM_COL32(6, 10, 22, 242));
+
+    const float width = std::min(720.0f * scale_, viewport->WorkSize.x * 0.92f);
+    const float height = std::min(430.0f * scale_, viewport->WorkSize.y * 0.90f);
+    ImGui::SetCursorPos(ImVec2((viewport->WorkSize.x - width) * 0.5f,
+                               (viewport->WorkSize.y - height) * 0.5f));
+    ImGui::BeginChild("##guide_card", ImVec2(width, height),
+                      ImGuiChildFlags_Borders);
+    ImGui::PushTextWrapPos(0.0f);
+
+    ImGui::TextColored(kMuted, "STEP %d OF %d", guide_step_ + 1, steps);
+    ImGui::Spacing();
+    ImGui::SetWindowFontScale(1.5f);
+    ImGui::TextUnformatted(guide_steps()[guide_step_].title);
+    ImGui::SetWindowFontScale(1.0f);
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // "Add disc" rather than iOS's "+ tile": the shared text leaves a token so
+    // each front end can name its own control.
+    char body[4096];
+    guide_body(guide_steps()[guide_step_].body, "Add disc", body, sizeof body);
+    // The wrap position has to be pushed INSIDE the child. BeginChild starts a
+    // new window and the outer PushTextWrapPos does not reach into it, so the
+    // text ran straight off the right edge and was clipped rather than wrapped.
+    ImGui::BeginChild("##guide_body", ImVec2(0.0f, -56.0f * scale_));
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextUnformatted(body);
+    ImGui::PopTextWrapPos();
+    ImGui::EndChild();
+
+    const float button = 150.0f * scale_;
+    if (guide_step_ > 0) {
+        if (ImGui::Button("BACK", ImVec2(button, 40.0f * scale_))) --guide_step_;
+        ImGui::SameLine();
+    }
+    if (guide_step_ < steps - 1) {
+        if (ImGui::Button("SKIP", ImVec2(button, 40.0f * scale_))) guide_open_ = false;
+        ImGui::SameLine();
+    }
+    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - button - ImGui::GetStyle().WindowPadding.x);
+    const char* next = guide_step_ == steps - 1 ? "START PLAYING" : "NEXT";
+    if (ImGui::Button(next, ImVec2(button, 40.0f * scale_))) {
+        if (guide_step_ == steps - 1) guide_open_ = false; else ++guide_step_;
+    }
+
+    ImGui::PopTextWrapPos();
+    ImGui::EndChild();
+    ImGui::End();
 }
 
 }  // namespace retro3do

@@ -7,6 +7,7 @@ import SwiftUI
 // disc path fields and the file browser. Those were the old System page. None
 // of them is a thing a person who wants to play a game needs to decide.
 struct SettingsSheet: View {
+    var showGuide: () -> Void
     @EnvironmentObject private var engine: Engine
     @Environment(\.dismiss) private var dismiss
     @State private var pal = false
@@ -14,6 +15,14 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Button(action: showGuide) {
+                        Label("How Retro-3DO works", systemImage: "book")
+                    }
+                } footer: {
+                    Text("The seven-step walkthrough from your first launch. It is here whenever you want it.")
+                }
+
                 Section {
                     Picker("Television", selection: $pal) {
                         Text("60 Hz (most games)").tag(false)

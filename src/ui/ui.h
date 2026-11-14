@@ -117,6 +117,10 @@ private:
                        UiIntent& intent);
     void draw_system(Console& console, UiIntent& intent);
     void draw_about();
+    // The shared walkthrough, drawn over whatever is behind it. The words come
+    // from src/core/guide.cpp so that this and the iOS app say the same thing.
+    void draw_guide();
+    void open_guide() { guide_open_ = true; guide_step_ = 0; }
     void draw_overlay(Console& console, bool emulating, double display_fps,
                       double emulated_fps, double frame_ms, u64 underruns,
                       bool touch_visible, bool touch_editing, UiIntent& intent);
@@ -158,6 +162,9 @@ private:
     char search_buffer_[128] = {};
     char library_group_ = 0;
     WizardStep wizard_step_ = WizardStep::Welcome;
+    bool guide_open_ = false;
+    bool guide_seen_ = false;
+    int  guide_step_ = 0;
     WizardPick wizard_pick_ = WizardPick::None;
     std::string bios_folder_name_;
     std::string bios_folder_target_;

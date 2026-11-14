@@ -11,6 +11,9 @@ struct Shelf: View {
     @State private var showingSettings = false
     @State private var note: String?
     @State private var confirmingRemoval: Engine.Disc?
+    @State private var showingGuide = false
+    // The only thing the app remembers about the person using it.
+    @AppStorage("hasSeenGuide") private var hasSeenGuide = false
 
     private let columns = [GridItem(.adaptive(minimum: 190, maximum: 240), spacing: 22)]
 
@@ -58,7 +61,18 @@ struct Shelf: View {
             .ignoresSafeArea()
         }
         .sheet(isPresented: $showingSettings) {
-            SettingsSheet().environmentObject(engine)
+            SettingsSheet(showGuide: { showingSettings = false; showingGuide = true })
+                .environmentObject(engine)
+        }
+        .sheet(isPresented: $showingGuide) { GuideView() }
+        .task {
+            // First launch only, and marked as seen the moment it is shown
+            // rather than when it is finished: somebody who skips it has still
+            // seen it, and being shown it twice is worse than missing the end.
+            if !hasSeenGuide {
+                hasSeenGuide = true
+                showingGuide = true
+            }
         }
         .alert("Remove this disc?", isPresented: Binding(
             get: { confirmingRemoval != nil },

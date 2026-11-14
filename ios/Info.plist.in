@@ -74,11 +74,15 @@
 	<array>
 		<string>arm64</string>
 	</array>
-	<!-- Landscape only. The machine's picture is 4:3 and the on-screen pad
-	     sits either side of it; in portrait the picture shrinks to a band and
-	     the controls have nowhere to go. The shelf is laid out for the same
-	     orientation so that starting a game never rotates the device under
-	     the player. -->
+	<!-- iPhone stays landscape: the machine's picture is 4:3 and the on-screen
+	     pad sits either side of it, so in portrait the picture shrinks to a band
+	     and the controls have nowhere to go.
+
+	     iPad takes all four. It is not a preference — an iPad app that refuses
+	     orientations is handed a compatibility window, and the shelf came up
+	     running upright in a 2064x1546 band of a 2064x2752 screen with most of
+	     the display black. The session lays its controls under the picture when
+	     the window is taller than it is wide. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
@@ -86,12 +90,12 @@
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UIStatusBarHidden</key>
-	<true/>
-	<key>UIRequiresFullScreen</key>
 	<true/>
 </dict>
 </plist>
