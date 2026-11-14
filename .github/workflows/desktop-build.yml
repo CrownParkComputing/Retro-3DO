@@ -3,6 +3,7 @@ name: Desktop release builds
 on:
   push:
     branches: [ios-shelf]
+    paths-ignore: ['ios/**', 'store/appstore/**', '.github/workflows/ios.yml']
   workflow_dispatch:
 
 permissions:

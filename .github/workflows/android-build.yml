@@ -3,6 +3,7 @@ name: Build Play Store AAB
 on:
   push:
     branches: [ main, master, ios-shelf ]
+    paths-ignore: ['ios/**', 'store/appstore/**', '.github/workflows/ios.yml']
   workflow_dispatch:
 
 permissions:
