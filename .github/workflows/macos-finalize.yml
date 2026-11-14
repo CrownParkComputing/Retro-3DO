@@ -47,6 +47,16 @@ jobs:
           grep -q 'runtime' package/notarization/signature.txt
           grep -q 'Timestamp=' package/notarization/signature.txt
           codesign -d -r- "$app" 2> package/notarization/requirements.txt
+      - name: Launch the signed app
+        run: |
+          executable="$PWD/app/Retro-3DO.app/Contents/MacOS/Retro-3DO"
+          "$executable" > package/notarization/launch.txt 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          sleep 10
+          kill -0 "$app_pid"
+          screencapture -x package/notarization/macos-launch.png || echo "Screen capture unavailable on this runner"
+          echo 'Signed app remained running after launch' >> package/notarization/launch.txt
       - name: Staple Apple's ticket and assess Gatekeeper
         run: |
           app=app/Retro-3DO.app
@@ -65,16 +75,6 @@ jobs:
           xcrun stapler validate "$app" 2>&1 | tee package/notarization/staple-validate.txt
           codesign --verify --all-architectures --deep --strict --verbose=4 "$app"
           spctl --assess --type execute --verbose=4 "$app" 2>&1 | tee package/notarization/gatekeeper.txt
-      - name: Launch the signed app
-        run: |
-          executable="$PWD/app/Retro-3DO.app/Contents/MacOS/Retro-3DO"
-          "$executable" > package/notarization/launch.txt 2>&1 &
-          app_pid=$!
-          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
-          sleep 10
-          kill -0 "$app_pid"
-          screencapture -x package/notarization/macos-launch.png
-          echo 'Signed app remained running after launch' >> package/notarization/launch.txt
       - name: Package the stapled universal app
         run: |
           version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' app/Retro-3DO.app/Contents/Info.plist)
