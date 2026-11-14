@@ -41,36 +41,42 @@ const GuideStep kSteps[] = {
     // ---- getting games in: one step each, and only one is ever shown -------
 
     {
-        "Getting discs onto your iPhone",
-        "iOS keeps every app's files to itself, so a disc has to be brought in "
-        "rather than pointed at. That is what {ADD} is for.\n\n"
-        "Choose it and the iOS file picker opens on everything your phone can "
-        "reach \xE2\x80\x94 Downloads, iCloud Drive, a USB drive, anything in Files. Pick "
-        "a disc image and it is copied into the app.\n\n"
-        "Because it is a copy, it keeps working even if you later move or "
-        "delete the original. Add as many as you like; each one becomes a tile.",
+        "Getting a game onto your iPhone",
+        "A 3DO game is a disc image: one file ending .iso, .chd or .img, or a "
+        ".bin with a .cue file beside it. Use images of discs you own.\n\n"
+        "Get the file into Files first \xE2\x80\x94 Downloads is the usual place, and "
+        "iCloud Drive or a plugged-in USB drive work just as well. iOS keeps "
+        "every app's files to itself, so there is no folder you can point this "
+        "app at; the file has to be brought in.\n\n"
+        "Then choose {ADD}. The picker opens on Files, you pick the image, and "
+        "it is copied into the app and becomes a tile. Because it is a copy it "
+        "keeps working even if you move or delete the original.\n\n"
+        "For a .bin and .cue pair, pick the .cue and keep the .bin beside it.",
         kGuideIos, kCyan
     },
     {
-        "Choose the folder your games are in",
-        "Android keeps apps out of each other's files, so instead of hunting "
-        "for your discs one at a time, you point Retro-3DO at a single folder "
-        "and it is given access to that folder and nothing else.\n\n"
-        "Pick the folder your disc images are in \xE2\x80\x94 or the one above them, since "
-        "everything inside comes with it, subfolders included. Android will ask "
-        "you to confirm.\n\n"
-        "You only do this once: the permission is remembered between launches. "
-        "The app can never see anything outside the folder you chose, and it "
-        "copies nothing \xE2\x80\x94 your files stay where they are.",
+        "Where to put your games",
+        "A 3DO game is a disc image: one file ending .iso, .chd or .img, or a "
+        ".bin with a .cue file beside it. Use images of discs you own.\n\n"
+        "Put them in one folder of your own \xE2\x80\x94 Downloads will do, or make a "
+        "folder called 3DO and keep them together. Subfolders inside it are "
+        "fine.\n\n"
+        "Then point Retro-3DO at that folder. Android will ask you to confirm, "
+        "and the app is given that folder and nothing else. You only do this "
+        "once: the permission is remembered between launches, the app can never "
+        "see anything outside the folder you chose, and nothing is copied \xE2\x80\x94 "
+        "your files stay where they are.",
         kGuideAndroid, kCyan
     },
     {
-        "Tell it where your games are",
-        "Point Retro-3DO at the folder your disc images are in and it reads "
-        "them where they sit, subfolders included. Nothing is copied and "
-        "nothing is moved.\n\n"
-        "You can change the folder later, or add discs one at a time with "
-        "{ADD} if you would rather not hand over a whole folder.",
+        "Where to put your games",
+        "A 3DO game is a disc image: one file ending .iso, .chd or .img, or a "
+        ".bin with a .cue file beside it. Use images of discs you own.\n\n"
+        "Keep them in one folder \xE2\x80\x94 Downloads will do, or a folder of their "
+        "own \xE2\x80\x94 and point Retro-3DO at it. It reads them where they sit, "
+        "subfolders included. Nothing is copied and nothing is moved.\n\n"
+        "You can change the folder later, or add a single disc with {ADD} if "
+        "you would rather not hand over a whole folder.",
         kGuideDesktop, kCyan
     },
 

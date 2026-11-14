@@ -169,10 +169,17 @@ int main(int argc, char** argv) {
         if (title[0] == 0 || body[0] == 0) return fail("a guide step is empty");
         if (strstr(body, "{ADD}") != NULL) return fail("a guide step still has {ADD} in it");
         if (r3_guide_accent(i) == 0) return fail("a guide step has no colour");
-        /* Pointing at a folder is not something iOS lets an app do, so those
-           steps must never reach the phone. */
-        if (strstr(body, "folder your disc images are in") != NULL)
+        /* Pointing at a folder is not something iOS lets an app do, so the
+           Android and desktop storage steps must never reach the phone.
+           Matched on the instruction itself rather than on any one sentence,
+           so rewording the guide cannot quietly turn this check off. */
+        if (strstr(body, "point Retro-3DO at") != NULL)
             return fail("a folder-permission step leaked into the iOS guide");
+        if (strstr(body, "Android") != NULL)
+            return fail("the iOS guide mentions Android");
+        /* And the iOS step has to still say where a file comes from. */
+        if (i == 2 && strstr(body, "Downloads") == NULL)
+            return fail("the iOS storage step stopped naming Downloads");
     }
     char body[2048];
     r3_guide_body(2, "the + tile", body, sizeof body);
