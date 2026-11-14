@@ -22,8 +22,11 @@
 	<string>${MACOSX_BUNDLE_BUNDLE_VERSION}</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- 16.0, not 15.0: the SwiftUI front end uses NavigationStack,
+	     LabeledContent and persistentSystemOverlays, all of which are
+	     iOS 16. That is iPhone 8 and later. -->
 	<key>MinimumOSVersion</key>
-	<string>15.0</string>
+	<string>16.0</string>
 
 	<!-- Declared here so no upload stops to ask. Without this key App Store
 	     Connect raises the export-compliance question on every delivery and
@@ -33,21 +36,19 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 
-	<!-- Purpose strings are required for APIs the binary LINKS, not only ones
-	     it calls, and SDL links several: nm -u on the built binary shows
-	     AVAudioSession, AVCaptureSession, AVCaptureDevice, CBCentralManager
-	     and CMMotionManager. Without these the upload is accepted and then
-	     discarded in processing as ITMS-90683, hours later, by email. The CI
-	     job derives the list from the binary rather than trusting this
-	     comment. -->
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Retro-3DO uses Bluetooth only to connect game controllers. It collects no data and never scans for anything else.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Retro-3DO does not use the camera. This entry is required because the SDL library the app is built on links Apple's camera APIs, and iOS asks for the description whether or not they are ever called.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Retro-3DO does not record audio. This entry is required because the SDL library the app is built on links Apple's audio-recording APIs, and iOS asks for the description whether or not they are ever called.</string>
-	<key>NSMotionUsageDescription</key>
-	<string>Retro-3DO does not read motion sensors. This entry is required because the SDL library the app is built on links Apple's motion APIs, and iOS asks for the description whether or not they are ever called.</string>
+	<!-- There are no purpose strings here any more, and their absence is the
+	     point. They existed because SDL linked AVCaptureSession, AVCaptureDevice,
+	     CBCentralManager and CMMotionManager whether or not the app ever called
+	     them, and iOS demands a description for an API that is merely linked.
+	     The iOS build no longer compiles SDL at all: the Swift front end links
+	     UIKit, SwiftUI, Metal, MetalKit, CoreImage and AVFoundation, none of
+	     which drags in a camera, a microphone, Bluetooth or the motion sensors.
+	     Four permission descriptions that promised the app does not use the
+	     camera are four fewer things on the App Store privacy page.
+
+	     The CI job still derives the required list from the built binary rather
+	     than trusting this comment, which is what would catch it if a future
+	     framework brought one of those APIs back. -->
 
 	<!-- A launch screen has to be declared, but naming a storyboard would pull
 	     in ibtool, which only exists on macOS. An empty dictionary satisfies
@@ -55,9 +56,11 @@
 	<key>UILaunchScreen</key>
 	<dict/>
 
-	<!-- Without these two the Documents folder never appears in the Files app,
-	     and there is no way for anyone to get a BIOS or a disc image onto the
-	     device. -->
+	<!-- Kept, but no longer the way content arrives. The app imports through
+	     iOS's own document picker now, so a person never has to find the Files
+	     app at all; these two remain so that someone who already keeps their
+	     discs in the app's folder is not cut off, and so a file can be opened
+	     into the app from elsewhere. -->
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
@@ -67,10 +70,11 @@
 	<array>
 		<string>arm64</string>
 	</array>
-	<!-- Landscape only. The launcher is a landscape surface and the machine's
-	     picture is 4:3, so a portrait window fits the frame into a tall
-	     surface and leaves the picture offset against the controls. Allowing
-	     portrait here is what made the app come up rotated on a handheld. -->
+	<!-- Landscape only. The machine's picture is 4:3 and the on-screen pad
+	     sits either side of it; in portrait the picture shrinks to a band and
+	     the controls have nowhere to go. The shelf is laid out for the same
+	     orientation so that starting a game never rotates the device under
+	     the player. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationLandscapeLeft</string>

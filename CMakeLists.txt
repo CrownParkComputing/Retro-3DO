@@ -33,7 +33,7 @@ set(RETRO3DO_CODE_SIGN_IDENTITY "" CACHE STRING
     "Signing identity, e.g. Apple Distribution; Manual signing only")
 set(RETRO3DO_MARKETING_VERSION "1.0" CACHE STRING "CFBundleShortVersionString")
 set(RETRO3DO_BUILD_NUMBER "1" CACHE STRING "CFBundleVersion")
-set(RETRO3DO_IOS_MIN "15.0" CACHE STRING "iOS deployment target")
+set(RETRO3DO_IOS_MIN "16.0" CACHE STRING "iOS deployment target")
 set(RETRO3DO_MACOS_MIN "11.0" CACHE STRING "macOS deployment target")
 
 # Instruction and register traces. These are how the hardware faults in this
@@ -133,172 +133,189 @@ if(NOT MSVC)
 endif()
 
 # ---------------------------------------------------------------------------
-# SDL3
-# ---------------------------------------------------------------------------
-if(RETRO3DO_USE_SYSTEM_SDL)
-    find_package(SDL3 REQUIRED CONFIG)
-    set(RETRO3DO_SDL_TARGET SDL3::SDL3)
-else()
-    # Android is the exception: its Java side loads libSDL3.so by name before it
-    # loads ours, so SDL has to be shared there. Everywhere else a static SDL
-    # keeps the app a single file. The Android CMakeLists sets these first, so
-    # only fill in a default when nothing has chosen yet.
-    if(ANDROID)
-        set(SDL_SHARED ON  CACHE BOOL "")
-        set(SDL_STATIC OFF CACHE BOOL "")
-    else()
-        set(SDL_SHARED OFF CACHE BOOL "")
-        set(SDL_STATIC ON  CACHE BOOL "")
-    endif()
-    set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-    add_subdirectory(third_party/SDL EXCLUDE_FROM_ALL)
-
-    if(TARGET SDL3::SDL3-static)
-        set(RETRO3DO_SDL_TARGET SDL3::SDL3-static)
-    else()
-        set(RETRO3DO_SDL_TARGET SDL3::SDL3-shared)
-    endif()
-endif()
-
-# ---------------------------------------------------------------------------
-# Dear ImGui, with the SDL3 renderer backend.
+# The front end.
 #
-# The SDL_Renderer backend is chosen over a graphics-API-specific one on
-# purpose: SDL_Renderer already resolves to GL, GLES, Metal, Vulkan or D3D per
-# platform, so Android and iOS need no separate render path here.
+# iOS and everything else part company here, and the split is the point. iOS
+# gets a SwiftUI app that talks to the Console through one plain-C header and
+# never compiles SDL or Dear ImGui at all; Android, macOS, Linux and Windows
+# keep the shared SDL/ImGui front end.
+#
+# This is not a packaging preference. The App Store rejected this app under
+# guideline 4.3 because the same ImGui screens were drawn by several apps from
+# one developer, and the answer is a front end written for the platform rather
+# than a reskin of a shared one.
 # ---------------------------------------------------------------------------
-set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
-add_library(imgui STATIC
-    ${IMGUI_DIR}/imgui.cpp
-    ${IMGUI_DIR}/imgui_draw.cpp
-    ${IMGUI_DIR}/imgui_tables.cpp
-    ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer3.cpp
-)
-target_include_directories(imgui PUBLIC ${IMGUI_DIR})
-target_link_libraries(imgui PUBLIC ${RETRO3DO_SDL_TARGET})
-
-# ---------------------------------------------------------------------------
-# The application
-# ---------------------------------------------------------------------------
-set(RETRO3DO_APP_SOURCES
-    src/main.cpp
-    src/platform/app.cpp
-    src/platform/emulator_thread.cpp
-    src/ui/ui.cpp
-    src/ui/game_library.cpp
-    src/ui/file_browser.cpp
-    src/ui/touch_pad.cpp
-    src/platform/storage.cpp
-    src/platform/android_storage.cpp
-)
-
-if(ANDROID)
-    # Rootless, per-app custom Adreno/Turnip loading. The driver itself is
-    # supplied by the user and kept in private app storage; these small BSD
-    # libraries only provide Android linker-namespace isolation.
-    add_subdirectory(third_party/libadrenotools EXCLUDE_FROM_ALL)
-    add_library(retro3do_vulkan_loader SHARED
-        src/platform/android_vulkan_loader.cpp)
-    target_link_libraries(retro3do_vulkan_loader PRIVATE adrenotools dl)
-
-    # SDLActivity dlopens the app rather than executing it, so on Android the
-    # app is a shared library and must be called "main".
-    add_library(retro3do SHARED ${RETRO3DO_APP_SOURCES})
-    set_target_properties(retro3do PROPERTIES OUTPUT_NAME "main")
-    target_link_libraries(retro3do PRIVATE retro3do_vulkan_loader)
-    add_dependencies(retro3do main_hook hook_impl file_redirect_hook gsl_alloc_hook)
+if(IOS)
+    add_subdirectory(ios)
 else()
-    add_executable(retro3do ${RETRO3DO_APP_SOURCES})
-endif()
+    # ---------------------------------------------------------------------------
+    # SDL3
+    # ---------------------------------------------------------------------------
+    if(RETRO3DO_USE_SYSTEM_SDL)
+        find_package(SDL3 REQUIRED CONFIG)
+        set(RETRO3DO_SDL_TARGET SDL3::SDL3)
+    else()
+        # Android is the exception: its Java side loads libSDL3.so by name before it
+        # loads ours, so SDL has to be shared there. Everywhere else a static SDL
+        # keeps the app a single file. The Android CMakeLists sets these first, so
+        # only fill in a default when nothing has chosen yet.
+        if(ANDROID)
+            set(SDL_SHARED ON  CACHE BOOL "")
+            set(SDL_STATIC OFF CACHE BOOL "")
+        else()
+            set(SDL_SHARED OFF CACHE BOOL "")
+            set(SDL_STATIC ON  CACHE BOOL "")
+        endif()
+        set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+        add_subdirectory(third_party/SDL EXCLUDE_FROM_ALL)
 
-find_package(Threads REQUIRED)
-target_link_libraries(retro3do PRIVATE retro3do_core imgui ${RETRO3DO_SDL_TARGET} Threads::Threads)
-target_include_directories(retro3do PRIVATE src)
+        if(TARGET SDL3::SDL3-static)
+            set(RETRO3DO_SDL_TARGET SDL3::SDL3-static)
+        else()
+            set(RETRO3DO_SDL_TARGET SDL3::SDL3-shared)
+        endif()
+    endif()
 
-if(APPLE)
-    # An Apple build is an app bundle, not a bare executable - on iOS because
-    # there is no other way to install one, and on macOS because a bare
-    # executable has no icon, no Info.plist, and cannot be notarised or
-    # double-clicked.
+    # ---------------------------------------------------------------------------
+    # Dear ImGui, with the SDL3 renderer backend.
     #
-    # The two platforms share the plist keys that identify the app and differ in
-    # everything else, so the common half is set once here.
-    set_target_properties(retro3do PROPERTIES
-        MACOSX_BUNDLE TRUE
-        # Both bundles are named the same thing so one script can find either.
-        OUTPUT_NAME "Retro-3DO"
-        MACOSX_BUNDLE_BUNDLE_NAME "Retro-3DO"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "${RETRO3DO_BUNDLE_ID}"
-        MACOSX_BUNDLE_BUNDLE_VERSION "${RETRO3DO_BUILD_NUMBER}"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "${RETRO3DO_MARKETING_VERSION}"
-        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${RETRO3DO_BUNDLE_ID}"
+    # The SDL_Renderer backend is chosen over a graphics-API-specific one on
+    # purpose: SDL_Renderer already resolves to GL, GLES, Metal, Vulkan or D3D per
+    # platform, so Android and iOS need no separate render path here.
+    # ---------------------------------------------------------------------------
+    set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
+    add_library(imgui STATIC
+        ${IMGUI_DIR}/imgui.cpp
+        ${IMGUI_DIR}/imgui_draw.cpp
+        ${IMGUI_DIR}/imgui_tables.cpp
+        ${IMGUI_DIR}/imgui_widgets.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer3.cpp
+    )
+    target_include_directories(imgui PUBLIC ${IMGUI_DIR})
+    target_link_libraries(imgui PUBLIC ${RETRO3DO_SDL_TARGET})
+
+    # ---------------------------------------------------------------------------
+    # The application
+    # ---------------------------------------------------------------------------
+    set(RETRO3DO_APP_SOURCES
+        src/main.cpp
+        src/platform/app.cpp
+        src/platform/emulator_thread.cpp
+        src/ui/ui.cpp
+        src/ui/game_library.cpp
+        src/ui/file_browser.cpp
+        src/ui/touch_pad.cpp
+        src/platform/storage.cpp
+        src/platform/android_storage.cpp
     )
 
-    # The icon. actool is part of Xcode and only runs under the Xcode
-    # generator, so the catalog is attached there and skipped elsewhere: a
-    # Ninja build of the app still runs, it just has a generic icon. That is
-    # the right way round - a missing icon must not stop someone building and
-    # testing the emulator.
-    set(RETRO3DO_XCASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/apple/Assets.xcassets)
-    if(CMAKE_GENERATOR STREQUAL "Xcode")
-        target_sources(retro3do PRIVATE ${RETRO3DO_XCASSETS})
-        set_source_files_properties(${RETRO3DO_XCASSETS} PROPERTIES
-            MACOSX_PACKAGE_LOCATION Resources)
-        set_target_properties(retro3do PROPERTIES
-            XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
+    if(ANDROID)
+        # Rootless, per-app custom Adreno/Turnip loading. The driver itself is
+        # supplied by the user and kept in private app storage; these small BSD
+        # libraries only provide Android linker-namespace isolation.
+        add_subdirectory(third_party/libadrenotools EXCLUDE_FROM_ALL)
+        add_library(retro3do_vulkan_loader SHARED
+            src/platform/android_vulkan_loader.cpp)
+        target_link_libraries(retro3do_vulkan_loader PRIVATE adrenotools dl)
+
+        # SDLActivity dlopens the app rather than executing it, so on Android the
+        # app is a shared library and must be called "main".
+        add_library(retro3do SHARED ${RETRO3DO_APP_SOURCES})
+        set_target_properties(retro3do PROPERTIES OUTPUT_NAME "main")
+        target_link_libraries(retro3do PRIVATE retro3do_vulkan_loader)
+        add_dependencies(retro3do main_hook hook_impl file_redirect_hook gsl_alloc_hook)
+    else()
+        add_executable(retro3do ${RETRO3DO_APP_SOURCES})
     endif()
 
-    # Signing. Empty by default so a clone builds with no Apple account at all;
-    # give -DRETRO3DO_APPLE_TEAM_ID=XXXXXXXXXX and Xcode signs automatically.
-    if(RETRO3DO_APPLE_TEAM_ID STREQUAL "")
-        set_target_properties(retro3do PROPERTIES
-            XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
-            XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
-    else()
-        # Automatic signing looks for an *App Development* profile, and a
-        # release runner only ever has the App Store distribution one, so an
-        # unattended archive dies with "No profiles for ... were found" before
-        # it builds. CI overrides these three to sign manually.
+    find_package(Threads REQUIRED)
+    target_link_libraries(retro3do PRIVATE retro3do_core imgui ${RETRO3DO_SDL_TARGET} Threads::Threads)
+    target_include_directories(retro3do PRIVATE src)
+
+    if(APPLE)
+        # An Apple build is an app bundle, not a bare executable - on iOS because
+        # there is no other way to install one, and on macOS because a bare
+        # executable has no icon, no Info.plist, and cannot be notarised or
+        # double-clicked.
         #
-        # They are set ON THE TARGET deliberately. Passing
-        # PROVISIONING_PROFILE_SPECIFIER on the xcodebuild command line applies
-        # it to every target in the project, static libraries included, and
-        # those fail with "does not support provisioning profiles".
+        # The two platforms share the plist keys that identify the app and differ in
+        # everything else, so the common half is set once here.
         set_target_properties(retro3do PROPERTIES
-            XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${RETRO3DO_APPLE_TEAM_ID}"
-            XCODE_ATTRIBUTE_CODE_SIGN_STYLE "${RETRO3DO_CODE_SIGN_STYLE}"
-            XCODE_ATTRIBUTE_PROVISIONING_PROFILE_SPECIFIER "${RETRO3DO_PROVISIONING_PROFILE}"
-            XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "${RETRO3DO_CODE_SIGN_IDENTITY}")
-    endif()
-
-    # Without these the archive's Products/Applications is empty and carries no
-    # ApplicationProperties, so -exportArchive has nothing to export and says
-    # nothing useful about why. CMake leaves SKIP_INSTALL at YES for the Xcode
-    # generator.
-    set_target_properties(retro3do PROPERTIES
-        XCODE_ATTRIBUTE_INSTALL_PATH "$(LOCAL_APPS_DIR)"
-        XCODE_ATTRIBUTE_SKIP_INSTALL "NO")
-
-    if(IOS)
-        set_target_properties(retro3do PROPERTIES
-            MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist.in
-            XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "${RETRO3DO_IOS_MIN}"
-            # 1,2 = iPhone and iPad from one build.
-            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+            MACOSX_BUNDLE TRUE
+            # Both bundles are named the same thing so one script can find either.
+            OUTPUT_NAME "Retro-3DO"
+            MACOSX_BUNDLE_BUNDLE_NAME "Retro-3DO"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "${RETRO3DO_BUNDLE_ID}"
+            MACOSX_BUNDLE_BUNDLE_VERSION "${RETRO3DO_BUILD_NUMBER}"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "${RETRO3DO_MARKETING_VERSION}"
+            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${RETRO3DO_BUNDLE_ID}"
         )
-    else()
+
+        # The icon. actool is part of Xcode and only runs under the Xcode
+        # generator, so the catalog is attached there and skipped elsewhere: a
+        # Ninja build of the app still runs, it just has a generic icon. That is
+        # the right way round - a missing icon must not stop someone building and
+        # testing the emulator.
+        set(RETRO3DO_XCASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/apple/Assets.xcassets)
+        if(CMAKE_GENERATOR STREQUAL "Xcode")
+            target_sources(retro3do PRIVATE ${RETRO3DO_XCASSETS})
+            set_source_files_properties(${RETRO3DO_XCASSETS} PROPERTIES
+                MACOSX_PACKAGE_LOCATION Resources)
+            set_target_properties(retro3do PROPERTIES
+                XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
+        endif()
+
+        # Signing. Empty by default so a clone builds with no Apple account at all;
+        # give -DRETRO3DO_APPLE_TEAM_ID=XXXXXXXXXX and Xcode signs automatically.
+        if(RETRO3DO_APPLE_TEAM_ID STREQUAL "")
+            set_target_properties(retro3do PROPERTIES
+                XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+                XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
+        else()
+            # Automatic signing looks for an *App Development* profile, and a
+            # release runner only ever has the App Store distribution one, so an
+            # unattended archive dies with "No profiles for ... were found" before
+            # it builds. CI overrides these three to sign manually.
+            #
+            # They are set ON THE TARGET deliberately. Passing
+            # PROVISIONING_PROFILE_SPECIFIER on the xcodebuild command line applies
+            # it to every target in the project, static libraries included, and
+            # those fail with "does not support provisioning profiles".
+            set_target_properties(retro3do PROPERTIES
+                XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${RETRO3DO_APPLE_TEAM_ID}"
+                XCODE_ATTRIBUTE_CODE_SIGN_STYLE "${RETRO3DO_CODE_SIGN_STYLE}"
+                XCODE_ATTRIBUTE_PROVISIONING_PROFILE_SPECIFIER "${RETRO3DO_PROVISIONING_PROFILE}"
+                XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "${RETRO3DO_CODE_SIGN_IDENTITY}")
+        endif()
+
+        # Without these the archive's Products/Applications is empty and carries no
+        # ApplicationProperties, so -exportArchive has nothing to export and says
+        # nothing useful about why. CMake leaves SKIP_INSTALL at YES for the Xcode
+        # generator.
         set_target_properties(retro3do PROPERTIES
-            MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist.in
-            XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET "${RETRO3DO_MACOS_MIN}"
-            # Notarisation requires the hardened runtime. It costs nothing to
-            # have it on in local builds too, and it means a hardened-runtime
-            # problem is found while building rather than at submission.
-            XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME "YES"
-            XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS
-                "${CMAKE_CURRENT_SOURCE_DIR}/macos/Retro3DO.entitlements"
-        )
+            XCODE_ATTRIBUTE_INSTALL_PATH "$(LOCAL_APPS_DIR)"
+            XCODE_ATTRIBUTE_SKIP_INSTALL "NO")
+
+        if(IOS)
+            set_target_properties(retro3do PROPERTIES
+                MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist.in
+                XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "${RETRO3DO_IOS_MIN}"
+                # 1,2 = iPhone and iPad from one build.
+                XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+            )
+        else()
+            set_target_properties(retro3do PROPERTIES
+                MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist.in
+                XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET "${RETRO3DO_MACOS_MIN}"
+                # Notarisation requires the hardened runtime. It costs nothing to
+                # have it on in local builds too, and it means a hardened-runtime
+                # problem is found while building rather than at submission.
+                XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME "YES"
+                XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS
+                    "${CMAKE_CURRENT_SOURCE_DIR}/macos/Retro3DO.entitlements"
+            )
+        endif()
     endif()
 endif()
 

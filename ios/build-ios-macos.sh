@@ -32,7 +32,7 @@ if [ ! -f "$REPO_ROOT/third_party/SDL/CMakeLists.txt" ] ||
 fi
 
 TARGET="${TARGET:-device}"
-IOS_MIN="${IOS_MIN:-15.0}"
+IOS_MIN="${IOS_MIN:-16.0}"
 TEAM_ID="${TEAM_ID:-}"
 ARCHIVE="${ARCHIVE:-0}"
 
