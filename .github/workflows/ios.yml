@@ -89,6 +89,12 @@ jobs:
           unzip -q /tmp/maestro.zip -d "$RUNNER_TEMP/maestro"
           echo "$RUNNER_TEMP/maestro/maestro/bin" >> "$GITHUB_PATH"
 
+      - name: Install screenshot exporter
+        run: |
+          python3 -m venv "$RUNNER_TEMP/screenshot-tools"
+          "$RUNNER_TEMP/screenshot-tools/bin/pip" install --disable-pip-version-check Pillow==13.0.0
+          echo "SHOT_PYTHON=$RUNNER_TEMP/screenshot-tools/bin/python" >> "$GITHUB_ENV"
+
       - name: Test iPhone and iPad flows and capture actual device orientation
         env:
           MAESTRO_CLI_NO_ANALYTICS: 'true'

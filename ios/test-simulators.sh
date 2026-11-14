@@ -71,27 +71,5 @@ for device in "${devices[@]}"; do
     esac
 done
 
-# Maestro captures the screen in its actual orientation. Never rotate an iPad
-# portrait screen into a sideways landscape store image merely to match a size.
-python3 - "${devices[@]}" <<'PY'
-import pathlib, shutil, struct, sys
-root = pathlib.Path('shots')
-for prefix in sys.argv[1:]:
-    landscape = (2868, 1320) if prefix.startswith('iphone') else (2752, 2064)
-    destination = root / 'store' / prefix
-    destination.mkdir(parents=True, exist_ok=True)
-    names = ['01-library', '02-guide', '03-controls', '04-demo']
-    if prefix.startswith('ipad'):
-        names += ['05-portrait-controls', '06-portrait-demo']
-    for name in names:
-        candidates = [p for p in root.rglob(name + '.png') if p.parts[1].startswith(prefix)]
-        assert len(candidates) == 1, (prefix, name, candidates)
-        source = candidates[0]
-        with source.open('rb') as stream:
-            header = stream.read(24)
-        size = struct.unpack('>II', header[16:24])
-        expected = landscape[::-1] if 'portrait' in name else landscape
-        assert size == expected, (source, size, expected)
-        shutil.copy2(source, destination / (name + '.png'))
-        print(prefix, name, size)
-PY
+# Export PNG pixels in the orientation XCTest records in their metadata.
+"${SHOT_PYTHON:-python3}" ios/tests/normalise_shots.py shots "${devices[@]}"
