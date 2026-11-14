@@ -9,7 +9,7 @@ maestro --version
 
 find_device() {
     xcrun simctl list devices available --json | python3 -c '
-import json, re, sys
+import json, re, subprocess, sys
 pattern = sys.argv[1]
 devices = json.load(sys.stdin)["devices"]
 for runtime in sorted(devices, reverse=True):
@@ -17,7 +17,13 @@ for runtime in sorted(devices, reverse=True):
         if re.search(pattern, device["name"]):
             print(device["udid"])
             sys.exit(0)
-sys.exit("No matching simulator: " + pattern)
+types = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devicetypes", "--json"]))["devicetypes"]
+device_type = next(t for t in types if re.search(pattern, t["name"]))
+runtimes = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "runtimes", "--json"]))["runtimes"]
+runtime = max((r for r in runtimes if r.get("isAvailable") and ".iOS-" in r["identifier"]),
+              key=lambda r: tuple(int(x) for x in r["version"].split(".")))
+print(subprocess.check_output(["xcrun", "simctl", "create", "Retro3DO-" + pattern,
+                               device_type["identifier"], runtime["identifier"]], text=True).strip())
 ' "$1"
 }
 
