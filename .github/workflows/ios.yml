@@ -48,7 +48,12 @@ jobs:
     name: iOS signed archive
     runs-on: macos-26
     timeout-minutes: 90
-    if: github.ref == 'refs/heads/main'
+    # ios-shelf as well as main, for the same reason the push trigger names it:
+    # the iOS app does not exist on main, so gating the only job that can
+    # produce a TestFlight build on main alone means no iOS build can ever be
+    # made. Narrow on purpose -- two named branches, not a wildcard, because
+    # every run of this job uploads a real build to App Store Connect.
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ios-shelf'
     env:
       HAS_SIGNING: ${{ secrets.SIGNING_PASSPHRASE != '' }}
       BUNDLE_ID: com.crownparkcomputing.retro3DO
