@@ -61,7 +61,9 @@ jobs:
       - name: Boot a simulator and photograph the app
         run: |
           set -euo pipefail
-          app=$(find build/ios-arm64-simulator -maxdepth 4 -name 'Retro-3DO.app' -print -quit)
+          # ios/build, not build: build-ios-macos.sh roots BUILD_DIR at its own
+          # directory, so the tree it writes is ios/build/ios-arm64-simulator.
+          app=$(find ios/build -name 'Retro-3DO.app' -type d -print -quit)
           [ -n "$app" ] || { echo "::error::no .app was built"; exit 1; }
 
           udid=$(xcrun simctl list devices available \

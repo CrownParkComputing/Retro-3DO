@@ -36,19 +36,23 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 
-	<!-- There are no purpose strings here any more, and their absence is the
-	     point. They existed because SDL linked AVCaptureSession, AVCaptureDevice,
-	     CBCentralManager and CMMotionManager whether or not the app ever called
-	     them, and iOS demands a description for an API that is merely linked.
-	     The iOS build no longer compiles SDL at all: the Swift front end links
-	     UIKit, SwiftUI, Metal, MetalKit, CoreImage and AVFoundation, none of
-	     which drags in a camera, a microphone, Bluetooth or the motion sensors.
-	     Four permission descriptions that promised the app does not use the
-	     camera are four fewer things on the App Store privacy page.
+	<!-- Required, and not by SDL. Sound.swift sets an AVAudioSession category
+	     so the emulator's audio mixes with whatever the person is already
+	     playing, and iOS demands this description from any binary that links
+	     AVAudioSession at all, called or not. Without it the upload is accepted
+	     and then discarded in processing as ITMS-90683, hours later, by email.
+	     The wording is the truth: the app plays sound and never records. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Retro-3DO does not record audio and has no microphone feature. This entry is required because the app configures an audio session in order to play the emulated console's sound, and iOS asks for a description whenever that system is used.</string>
 
-	     The CI job still derives the required list from the built binary rather
-	     than trusting this comment, which is what would catch it if a future
-	     framework brought one of those APIs back. -->
+	<!-- The camera, motion and Bluetooth strings that used to sit here are gone
+	     with SDL, which linked AVCaptureSession, AVCaptureDevice,
+	     CBCentralManager and CMMotionManager whether or not the app ever called
+	     them. The Swift front end links none of those, and the pre-flight check
+	     reads the built binary rather than this comment, and it is what
+	     proved the three were genuinely gone and the one above was not. Three
+	     permission prompts the app never needed are three fewer things on its
+	     App Store privacy page. -->
 
 	<!-- A launch screen has to be declared, but naming a storyboard would pull
 	     in ibtool, which only exists on macOS. An empty dictionary satisfies
