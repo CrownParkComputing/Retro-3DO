@@ -19,29 +19,35 @@ struct Session: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            HStack(spacing: 0) {
-                if controlsVisible {
-                    Pad.Directions(mask: $mask)
-                        .frame(width: 190)
-                        .transition(.opacity)
-                }
-                Screen()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.2)) { controlsVisible.toggle() }
+            // Explicit geometry, not flexible frames. maxWidth/maxHeight on the
+            // row and on the picture changed nothing measurable: the picture
+            // still came back 832px tall in a 1206px screen, byte for byte the
+            // same screenshot. Whatever SwiftUI was proposing to a
+            // UIViewRepresentable in an HStack, it was not the container's
+            // height. Measuring the container and saying the sizes out loud
+            // removes the question.
+            GeometryReader { geo in
+                let side = min(190, geo.size.width * 0.22)
+                HStack(spacing: 0) {
+                    if controlsVisible {
+                        Pad.Directions(mask: $mask)
+                            .frame(width: side, height: geo.size.height)
+                            .transition(.opacity)
                     }
-                if controlsVisible {
-                    Pad.Actions(mask: $mask)
-                        .frame(width: 190)
-                        .transition(.opacity)
+                    Screen()
+                        .frame(width: geo.size.width - (controlsVisible ? side * 2 : 0),
+                               height: geo.size.height)
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.2)) { controlsVisible.toggle() }
+                        }
+                    if controlsVisible {
+                        Pad.Actions(mask: $mask)
+                            .frame(width: side, height: geo.size.height)
+                            .transition(.opacity)
+                    }
                 }
             }
-            // Both maxima matter. Without them the row is only as tall as the
-            // control columns -- about 277pt -- and the picture is fitted into
-            // that instead of into the screen, which measured 1109px wide
-            // where 1482 was available.
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea(edges: .vertical)
+            .ignoresSafeArea()
 
             if controlsVisible {
                 VStack {
