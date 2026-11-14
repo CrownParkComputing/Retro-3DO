@@ -2,7 +2,13 @@ name: iOS
 
 on:
   push:
-    branches: [main]
+    # ios-shelf as well as main. main is Android and desktop only (dba47c2,
+    # "iOS is Clio, and this repository is Android and desktop") and has no
+    # ios/ directory, so this workflow does not exist there -- which is also
+    # why workflow_dispatch below is never offered in the web UI: GitHub only
+    # lists it for workflows already on the default branch. Naming the branch
+    # here is the only way a push can build the iOS app at all.
+    branches: [main, ios-shelf]
   pull_request:
     branches: [main]
   workflow_dispatch:
