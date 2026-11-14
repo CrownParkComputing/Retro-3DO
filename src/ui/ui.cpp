@@ -516,7 +516,7 @@ UiIntent Ui::build(Console& console, bool emulating, double display_fps,
         guide_seen_ = true;
         open_guide();
     }
-    draw_guide(intent);
+    draw_guide(console, intent);
 
     ImGui::Render();
     return intent;
@@ -1569,7 +1569,7 @@ void Ui::render(SDL_Renderer* renderer) {
 // modal on purpose: a first-time user being talked through the app should not
 // be able to half-start a game underneath it.
 // ---------------------------------------------------------------------------
-void Ui::draw_guide(UiIntent& intent) {
+void Ui::draw_guide(Console& console, UiIntent& intent) {
     if (guide_resume_ && browsing_ == Browsing::None) {
         guide_resume_ = false;
         guide_open_ = true;
@@ -1648,16 +1648,33 @@ void Ui::draw_guide(UiIntent& intent) {
     ImGui::Separator();
     ImGui::Spacing();
 
+    // Whether what this step asks for is already in place. The step's action
+    // says which state to look at: a system ROM already loaded, or games the
+    // app can already see. Nobody should be walked through importing what they
+    // have already got, so the step explains itself and offers nothing.
+    const bool have_bios = console.bios_loaded() && !console.demo_loaded();
+    const bool have_games = !library_.games().empty();
+    bool satisfied = false;
+    switch (step->action) {
+        case kActionAddBios:                        satisfied = have_bios; break;
+        case kActionAddGame:
+        case kActionChooseFolder:                   satisfied = have_games; break;
+        default:                                    break;
+    }
+
     // "Add disc" rather than iOS's "+ tile": the shared text leaves a token so
     // each front end can name its own control.
     char body[4096];
-    guide_body(step->body, add_control, body, sizeof body);
+    const char* text = (satisfied && step->done_body != nullptr) ? step->done_body
+                                                                 : step->body;
+    guide_body(text, add_control, body, sizeof body);
     // The wrap position has to be pushed INSIDE the child. BeginChild starts a
     // new window and the outer PushTextWrapPos does not reach into it, so the
     // text ran straight off the right edge and was clipped rather than wrapped.
     // Leave room for the navigation row, and for the action row when the step
     // has one -- otherwise the buttons it offers are pushed off the card.
-    const float reserved = (step->action != kActionNone ? 104.0f : 56.0f) * scale_;
+    const float reserved =
+        (step->action != kActionNone && !satisfied ? 104.0f : 56.0f) * scale_;
     ImGui::BeginChild("##guide_body", ImVec2(0.0f, -reserved));
     ImGui::PushTextWrapPos(0.0f);
     ImGui::TextUnformatted(body);
@@ -1707,7 +1724,7 @@ void Ui::draw_guide(UiIntent& intent) {
         }
     };
 
-    if (step->action != kActionNone && step->action_label != nullptr) {
+    if (step->action != kActionNone && step->action_label != nullptr && !satisfied) {
         ImGui::PushStyleColor(ImGuiCol_Button, tinted(accent, 0.34f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, tinted(accent, 0.50f));
         const bool wide = step->action2 == kActionNone;

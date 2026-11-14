@@ -198,6 +198,26 @@ int main(int argc, char** argv) {
         if (act != R3_GUIDE_NONE && label[0] == 0)
             return fail("a step offers an action with no button text");
     }
+    /* Every step that asks for something must also have the words for when it
+       is already done, or a returning user is nagged to import what they
+       imported last week. */
+    for (int i = 0; i < steps; ++i) {
+        char done[2048] = {0};
+        const int act = r3_guide_action(i, 0);
+        const int n = r3_guide_body_done(i, "the + tile", done, sizeof done);
+        /* The demo is excluded: it can always be played again, so there is
+           no state in which that step is "already done". */
+        const int asks_for_content = act == R3_GUIDE_ADD_GAME ||
+                                     act == R3_GUIDE_ADD_BIOS ||
+                                     act == R3_GUIDE_CHOOSE_FOLDER;
+        if (asks_for_content && n == 0)
+            return fail("a step that asks for content has no already-done text");
+        if (act == R3_GUIDE_NONE && n != 0)
+            return fail("a step that asks for nothing has already-done text");
+        if (n > 0 && strstr(done, "{ADD}") != NULL)
+            return fail("already-done text still has {ADD} in it");
+    }
+
     if (!saw_demo) return fail("the walkthrough cannot start the demo");
     if (!saw_bios) return fail("the walkthrough cannot import a system ROM");
     if (!saw_game) return fail("the walkthrough cannot import a game");

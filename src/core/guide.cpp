@@ -27,6 +27,7 @@ const GuideStep kSteps[] = {
         "no account and no sign-in anywhere in the app.\n\n"
         "Where a step can do something for you, there is a button under it "
         "that does it.",
+        nullptr,
         kGuideEverywhere, kPink, kActionNone, nullptr, kActionNone, nullptr
     },
     {
@@ -38,6 +39,7 @@ const GuideStep kSteps[] = {
         "then let you move a marker around with the pad. It is the quickest way "
         "to see whether everything is working.\n\n"
         "Try it now \xE2\x80\x94 this guide will still be here.",
+        nullptr,
         kGuideEverywhere, kAmber, kActionPlayDemo, "Play the demo now",
         kActionNone, nullptr
     },
@@ -55,7 +57,12 @@ const GuideStep kSteps[] = {
         "Then choose {ADD}. The picker opens on Files, you pick the image, and "
         "it is copied into the app and becomes a tile. Because it is a copy it "
         "keeps working even if you move or delete the original.\n\n"
+        "There is no folder to choose and nothing to set up: iOS gives every "
+        "app one place of its own and that is where your games go.\n\n"
         "For a .bin and .cue pair, pick the .cue and keep the .bin beside it.",
+        "Your games are already here, on the shelf behind this guide.\n\n"
+        "Add more whenever you like with {ADD} \xE2\x80\x94 the picker opens on Files, and "
+        "what you choose is copied in beside the rest.",
         kGuideIos, kCyan, kActionAddGame, "Import a game", kActionNone, nullptr
     },
     {
@@ -70,6 +77,10 @@ const GuideStep kSteps[] = {
         "once: the permission is remembered between launches, the app can never "
         "see anything outside the folder you chose, and nothing is copied \xE2\x80\x94 "
         "your files stay where they are.",
+        "Your games folder is already set and the app can see what is in it, so "
+        "there is nothing to do here.\n\n"
+        "Drop new disc images into that folder and they appear. You can point "
+        "the app somewhere else at any time.",
         kGuideAndroid, kCyan, kActionChooseFolder, "Choose my games folder",
         kActionAddGame, "Import one game"
     },
@@ -82,6 +93,10 @@ const GuideStep kSteps[] = {
         "subfolders included. Nothing is copied and nothing is moved.\n\n"
         "You can change the folder later, or add a single disc with {ADD} if "
         "you would rather not hand over a whole folder.",
+        "Your games folder is already set and the app can see what is in it, so "
+        "there is nothing to do here.\n\n"
+        "Drop new disc images into that folder and they appear. You can point "
+        "the app somewhere else at any time.",
         kGuideDesktop, kCyan, kActionChooseFolder, "Choose my games folder",
         kActionAddGame, "Import one game"
     },
@@ -94,6 +109,8 @@ const GuideStep kSteps[] = {
         "the same way you added your discs. The app recognises it on sight and "
         "remembers it. You only ever do this once, and until you do, your discs "
         "will tell you they need it.",
+        "You already have a system ROM, so your discs will play. It is remembered, "
+        "and you will not be asked for it again.",
         kGuideEverywhere, kViolet, kActionAddBios, "Import my system ROM",
         kActionNone, nullptr
     },
@@ -105,6 +122,7 @@ const GuideStep kSteps[] = {
         "use P to pause and start. L and R are the shoulder buttons.\n\n"
         "Touch the picture to hide the controls and see the game on its own. "
         "Touch it again to bring them back.",
+        nullptr,
         kGuideIos | kGuideAndroid, kGreen, kActionNone, nullptr, kActionNone, nullptr
     },
     {
@@ -114,6 +132,7 @@ const GuideStep kSteps[] = {
         "buttons to A, B and C.\n\n"
         "Without one, the keyboard stands in \xE2\x80\x94 the arrow keys steer, and Z, X "
         "and C are A, B and C.",
+        nullptr,
         kGuideDesktop, kGreen, kActionNone, nullptr, kActionNone, nullptr
     },
     {
@@ -123,6 +142,7 @@ const GuideStep kSteps[] = {
         "so you will not lose a save by closing it.\n\n"
         "Saves belong to the machine, not to a disc, exactly as they did on the "
         "real console.",
+        nullptr,
         kGuideEverywhere, kAmber, kActionNone, nullptr, kActionNone, nullptr
     },
     {
@@ -132,6 +152,7 @@ const GuideStep kSteps[] = {
         "setting from 60 Hz to 50 Hz.\n\n"
         "That is the only setting most people ever need. You can read this "
         "guide again whenever you like \xE2\x80\x94 it is the first thing in Settings.",
+        nullptr,
         kGuideEverywhere, kPink, kActionNone, nullptr, kActionNone, nullptr
     },
 };

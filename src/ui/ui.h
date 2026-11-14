@@ -119,7 +119,7 @@ private:
     void draw_about();
     // The shared walkthrough, drawn over whatever is behind it. The words come
     // from src/core/guide.cpp so that this and the iOS app say the same thing.
-    void draw_guide(UiIntent& intent);
+    void draw_guide(Console& console, UiIntent& intent);
     void open_guide() { guide_open_ = true; guide_step_ = 0; guide_focus_ = true; }
     void draw_overlay(Console& console, bool emulating, double display_fps,
                       double emulated_fps, double frame_ms, u64 underruns,

@@ -39,6 +39,11 @@ enum GuideAction : unsigned {
 struct GuideStep {
     const char* title;
     const char* body;
+    // Shown instead of `body` when the thing this step asks for is already in
+    // place -- a system ROM already loaded, games already found. Nobody should
+    // be walked through importing what they have already got. null means the
+    // step asks for nothing, so there is nothing to have done.
+    const char* done_body;
     unsigned    platforms;
     // 0xRRGGBB, carried here so a step is the same colour in every front end.
     // Taken from the app's own spectrum rather than invented per platform.

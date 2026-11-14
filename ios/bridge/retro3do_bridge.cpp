@@ -574,6 +574,14 @@ int r3_guide_body(int step, const char* add_control, char* out, int out_len) {
     return static_cast<int>(std::strlen(out));
 }
 
+int r3_guide_body_done(int step, const char* add_control, char* out, int out_len) {
+    const GuideStep* s = guide_step(kGuideIos, static_cast<std::size_t>(step));
+    if (step < 0 || s == nullptr || s->done_body == nullptr) return 0;
+    if (out == nullptr || out_len <= 0) return 0;
+    guide_body(s->done_body, add_control, out, static_cast<std::size_t>(out_len));
+    return static_cast<int>(std::strlen(out));
+}
+
 uint32_t r3_guide_accent(int step) {
     const GuideStep* s = guide_step(kGuideIos, static_cast<std::size_t>(step));
     return (step < 0 || s == nullptr) ? 0xFD9E3Du : s->accent;

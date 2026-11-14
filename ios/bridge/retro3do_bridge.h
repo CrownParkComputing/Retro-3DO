@@ -142,6 +142,13 @@ int r3_guide_count(void);
 int r3_guide_title(int step, char *out, int out_len);
 int r3_guide_body(int step, const char *add_control, char *out, int out_len);
 
+// The text for a step whose job is already done -- a system ROM already
+// loaded, games already on the shelf. Returns 0 when the step asks for
+// nothing, in which case there is nothing to have done and r3_guide_body
+// stands. Whether it IS done is the front end's to decide from its own state;
+// the step's action says which state to look at.
+int r3_guide_body_done(int step, const char *add_control, char *out, int out_len);
+
 // 0xRRGGBB for the step. The colour lives beside the words so a step looks the
 // same in every version of the app rather than being restyled three times.
 uint32_t r3_guide_accent(int step);

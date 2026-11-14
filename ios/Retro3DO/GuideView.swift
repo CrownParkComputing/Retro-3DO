@@ -111,7 +111,9 @@ struct GuideView: View {
     // two, which is what Android needs; iOS never sees more than one.
     @ViewBuilder private var actions: some View {
         let first = Int(r3_guide_action(Int32(step), 0))
-        if first != Int(R3_GUIDE_NONE.rawValue) {
+        // Nothing to offer when it is already done: the step explains itself
+        // and the user moves on.
+        if first != Int(R3_GUIDE_NONE.rawValue) && !satisfied(step) {
             VStack(spacing: 10) {
                 actionButton(slot: 0, action: first)
                 if let note {
@@ -197,8 +199,24 @@ struct GuideView: View {
         return String(cString: buffer)
     }
 
+    /// Whether what this step asks for is already in place. The step says
+    /// which state to look at through its action; nobody should be walked
+    /// through importing a system ROM they imported last week.
+    private func satisfied(_ i: Int) -> Bool {
+        switch UInt32(r3_guide_action(Int32(i), 0)) {
+        case R3_GUIDE_ADD_BIOS.rawValue:               return engine.hasBios
+        case R3_GUIDE_ADD_GAME.rawValue,
+             R3_GUIDE_CHOOSE_FOLDER.rawValue:          return !engine.discs.isEmpty
+        default:                                        return false
+        }
+    }
+
     private func body(_ i: Int) -> String {
         var buffer = [CChar](repeating: 0, count: 4096)
+        if satisfied(i),
+           r3_guide_body_done(Int32(i), GuideView.addControl, &buffer, 4096) > 0 {
+            return String(cString: buffer)
+        }
         _ = r3_guide_body(Int32(i), GuideView.addControl, &buffer, 4096)
         return String(cString: buffer)
     }
