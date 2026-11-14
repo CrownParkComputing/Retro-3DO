@@ -1396,6 +1396,28 @@ void Ui::draw_quick_menu(Console& console, bool emulating, bool touch_visible,
     }
     ImGui::PopStyleColor();
 
+    // The demonstration the walkthrough started is not the app proper, and its
+    // menu says so: carry on, or go back to the guide. Nothing else belongs
+    // here -- settings and a game library are things the walkthrough has not
+    // introduced yet, and the demo is not a game anyone needs to reset.
+    //
+    // Keyed on the demo ROM actually being the thing in the machine, not just
+    // on the flag, so starting a real disc from inside a guide session cannot
+    // leave this menu behind.
+    if (guide_demo_ && console.demo_loaded()) {
+        ImGui::Spacing();
+        if (wide_button("BACK TO THE GUIDE", 42.0f * scale_)) {
+            guide_demo_ = false;
+            show_launcher_ = true;
+            quick_menu_ = false;
+            open_guide();
+            guide_step_ = guide_demo_step_;
+        }
+        ImGui::PopTextWrapPos();
+        ImGui::End();
+        return;
+    }
+
     ImGui::Spacing();
     ImGui::TextColored(kCyan, "ON-SCREEN CONTROLLER");
     if (ImGui::Checkbox("Enabled", &touch_visible)) {
@@ -1447,19 +1469,7 @@ void Ui::draw_quick_menu(Console& console, bool emulating, bool touch_visible,
         intent.reset = true;
         quick_menu_ = false;
     }
-    // A demonstration the walkthrough started has no way out to the library:
-    // it goes back to the walkthrough, which is what the user was doing.
-    if (guide_demo_) {
-        if (ImGui::Button("BACK TO THE GUIDE", ImVec2(-1.0f, 0.0f))) {
-            guide_demo_ = false;
-            show_launcher_ = true;
-            quick_menu_ = false;
-            intent.eject = true;
-            open_guide();
-            // Back where they were, not at step one again.
-            guide_step_ = guide_demo_step_;
-        }
-    } else if (ImGui::Button("RETURN TO LIBRARY", ImVec2(-1.0f, 0.0f))) {
+    if (ImGui::Button("RETURN TO LIBRARY", ImVec2(-1.0f, 0.0f))) {
         page_ = Page::Library;
         show_launcher_ = true;
         quick_menu_ = false;
