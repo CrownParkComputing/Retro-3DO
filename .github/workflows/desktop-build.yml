@@ -31,7 +31,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libasound2-dev libpulse-dev libudev-dev libdbus-1-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev libgl1-mesa-dev
+          sudo apt-get install -y libasound2-dev libpulse-dev libudev-dev libdbus-1-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev libgl1-mesa-dev
       - name: Configure release
         run: cmake -S . -B build-release -DRETRO3DO_BUILD_TESTS=ON -DRETRO3DO_USE_SYSTEM_SDL=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
       - name: Build release and checks
@@ -89,7 +89,7 @@ jobs:
           mkdir -p package
           app=$(find macos/build/macos -name Retro-3DO.app -type d -print -quit)
           test -n "$app"
-          lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/Retro-3DO"
+          lipo "$app/Contents/MacOS/Retro-3DO" -verify_arch arm64 x86_64
           ditto -c -k --keepParent "$app" package/Retro-3DO-2.2.0-macos-universal-unsigned.zip
       - uses: actions/upload-artifact@v4
         with:

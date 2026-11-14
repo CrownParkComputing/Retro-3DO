@@ -183,7 +183,7 @@ int main(int argc, char** argv) {
     }
     /* Each step's offer, printed so the walkthrough can be read at a glance,
        and asserted so the buttons cannot quietly go missing. */
-    int saw_demo = 0, saw_bios = 0, saw_game = 0;
+    int saw_demo = 0, saw_bios = 0, saw_game = 0, saw_layout = 0;
     for (int i = 0; i < steps; ++i) {
         char title[128], label[128] = {0};
         r3_guide_title(i, title, sizeof title);
@@ -193,6 +193,7 @@ int main(int argc, char** argv) {
         if (act == R3_GUIDE_PLAY_DEMO) saw_demo = 1;
         if (act == R3_GUIDE_ADD_BIOS)  saw_bios = 1;
         if (act == R3_GUIDE_ADD_GAME)  saw_game = 1;
+        if (act == R3_GUIDE_EDIT_LAYOUT) saw_layout = 1;
         if (act == R3_GUIDE_CHOOSE_FOLDER)
             return fail("iOS was offered a folder to choose, which it cannot do");
         if (act != R3_GUIDE_NONE && label[0] == 0)
@@ -221,6 +222,7 @@ int main(int argc, char** argv) {
     if (!saw_demo) return fail("the walkthrough cannot start the demo");
     if (!saw_bios) return fail("the walkthrough cannot import a system ROM");
     if (!saw_game) return fail("the walkthrough cannot import a game");
+    if (!saw_layout) return fail("the walkthrough cannot configure the on-screen pad");
 
     char body[2048];
     r3_guide_body(2, "the + tile", body, sizeof body);
@@ -231,6 +233,50 @@ int main(int argc, char** argv) {
 
     r3_stop();
     r3_shutdown();
+
+    // The imported BIOS and shared save memory must survive both the demo and
+    // a fresh launch. Use a separate fixture so this never touches real saves.
+    char persistent_dir[1024];
+    snprintf(persistent_dir, sizeof persistent_dir, "%s/persistence-XXXXXX", dir);
+    if (mkdtemp(persistent_dir) == NULL) return fail("create persistence fixture");
+    char legacy_path[1200], save_path[1200], bios_path[1200];
+    snprintf(legacy_path, sizeof legacy_path, "%s/nvram.bin", persistent_dir);
+    snprintf(save_path, sizeof save_path, "%s/saves/nvram.bin", persistent_dir);
+    snprintf(bios_path, sizeof bios_path, "%s/test-bios.bin", persistent_dir);
+    unsigned char legacy[32768], restored[32769], bios[128] = {0};
+    for (size_t i = 0; i < sizeof legacy; ++i) legacy[i] = (unsigned char)(i * 17 + 3);
+    for (int i = 0; i < 8; ++i) {
+        bios[i * 4] = 0xe1; bios[i * 4 + 1] = 0xa0;
+        bios[i * 4 + 2] = 0x10; bios[i * 4 + 3] = 0x01;
+    }
+    FILE* fixture = fopen(legacy_path, "wb");
+    if (!fixture) return fail("create legacy RAM fixture");
+    const size_t legacy_written = fwrite(legacy, 1, sizeof legacy, fixture);
+    if (fclose(fixture) != 0 || legacy_written != sizeof legacy)
+        return fail("write legacy RAM fixture");
+    fixture = fopen(bios_path, "wb");
+    if (!fixture) return fail("create BIOS fixture");
+    const size_t bios_written = fwrite(bios, 1, sizeof bios, fixture);
+    if (fclose(fixture) != 0 || bios_written != sizeof bios)
+        return fail("write BIOS fixture");
+    if (!r3_start(persistent_dir)) return fail("start persistence fixture");
+    if (r3_import(bios_path, NULL, 0) != R3_IMPORT_BIOS || !r3_has_bios())
+        return fail("import a retail-header BIOS");
+    if (r3_library_count() != 0) return fail("BIOS appeared as a game");
+    if (!r3_play_demo()) return fail("demo after BIOS import");
+    r3_stop();
+    if (!r3_has_bios()) return fail("demo forgot the imported BIOS");
+    r3_shutdown();
+    if (!r3_start(persistent_dir) || !r3_has_bios())
+        return fail("relaunch forgot the imported BIOS");
+    r3_shutdown();
+    fixture = fopen(save_path, "rb");
+    if (!fixture) return fail("shared saves folder was not created");
+    const size_t save_bytes = fread(restored, 1, sizeof restored, fixture);
+    fclose(fixture);
+    if (save_bytes != sizeof legacy || memcmp(legacy, restored, sizeof legacy) != 0)
+        return fail("migration or the demo changed existing saved RAM");
+    printf("BIOS survives demo/relaunch; shared saved RAM migrated unchanged\n");
     printf("PASS\n");
     free(pixels);
     return 0;

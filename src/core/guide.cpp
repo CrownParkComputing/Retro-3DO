@@ -159,8 +159,8 @@ const GuideStep kSteps[] = {
         "does this. It is written whenever you stop playing or leave the app, "
         "so you will not lose a save by closing it.\n\n"
         "Saves belong to the machine, not to a disc, exactly as they did on the "
-        "real console. On Android and desktop, your library's saves folder "
-        "contains nvram.bin, shared by every game.",
+        "real console. Saved RAM is kept in a saves folder as nvram.bin, "
+        "shared by every game.",
         nullptr,
         kGuideEverywhere, kAmber, kActionNone, nullptr, kActionNone, nullptr
     },

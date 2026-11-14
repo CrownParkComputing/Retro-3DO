@@ -84,6 +84,7 @@ final class Engine: ObservableObject {
 
     func stop() {
         r3_stop()
+        refresh()
         playing = false
     }
 

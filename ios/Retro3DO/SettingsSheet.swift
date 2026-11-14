@@ -24,8 +24,10 @@ struct SettingsSheet: View {
                     Text("The setup guide from your first launch. It is here whenever you want it.")
                 }
 
-                Section("On-screen controls") {
+                Section {
                     Button("Arrange my controls") { editingControls = true }
+                } header: {
+                    Text("On-screen controls")
                 } footer: {
                     Text("Available even with a controller connected. Your layout is remembered.")
                 }

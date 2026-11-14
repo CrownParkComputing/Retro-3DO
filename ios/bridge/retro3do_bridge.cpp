@@ -1,6 +1,10 @@
 #include "retro3do_bridge.h"
 
 #include <atomic>
+#include <algorithm>
+#include <cctype>
+#include <filesystem>
+#include <fstream>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -63,18 +67,6 @@ bool is_a_3do_disc(Disc& disc, std::string* out_label) {
     return true;
 }
 
-bool looks_like_a_system_rom(const unsigned char* head, size_t len) {
-    if (len < 32) return false;
-    if (head[0] != 0xEA) return false;          // the reset vector must branch
-    int vectors = 0;
-    for (size_t word = 0; word < 8; ++word) {
-        const unsigned char top = head[word * 4];
-        // B, or the LDR/LDM forms some ROMs use to jump further than a branch
-        // can reach.
-        if (top == 0xEA || top == 0xE5 || top == 0xE9) ++vectors;
-    }
-    return vectors >= 4;
-}
 
 struct Bridge {
     std::unique_ptr<Console> console;
@@ -102,6 +94,8 @@ struct Bridge {
     std::atomic<bool> pal{false};
 
     std::string support_dir;
+    std::string save_dir;
+    std::string bios_path;
     std::string error;
     std::mutex error_mutex;
 
@@ -133,30 +127,99 @@ int copy_out(const std::string& text, char* out, int out_len) {
     return n;
 }
 
-// ------------------------------------------------------------------- NVRAM --
-// The 3DO keeps game saves in battery-backed memory. It is one small file and
-// it is written on every stop rather than on a timer, so that iOS killing the
-// app in the background cannot cost a save.
+// Persistent files are replaced only after their complete contents reach disk.
+bool write_atomic(const std::string& path, const void* data, size_t size) {
+    const std::string temporary = path + ".tmp";
+    std::FILE* file = std::fopen(temporary.c_str(), "wb");
+    if (!file) return false;
+    bool written = std::fwrite(data, 1, size, file) == size;
+    written = std::fclose(file) == 0 && written;
+    if (written && std::rename(temporary.c_str(), path.c_str()) == 0) return true;
+    std::remove(temporary.c_str());
+    return false;
+}
 
+void remember_bios(const std::string& path) {
+    g->bios_path = path;
+    const auto relative = std::filesystem::path(path).lexically_relative(g->support_dir);
+    const std::string stored = relative.empty() ? path : relative.generic_string();
+    write_atomic(join(g->support_dir, "bios.path"), stored.data(), stored.size());
+}
+
+bool restore_bios() {
+    auto load = [](const std::string& path) {
+        std::FILE* file = std::fopen(path.c_str(), "rb");
+        if (!file) return false;
+        unsigned char head[32] = {};
+        const size_t count = std::fread(head, 1, sizeof head, file);
+        std::fseek(file, 0, SEEK_END);
+        const long size = std::ftell(file);
+        std::fclose(file);
+        return size > 0 && size <= kMaxBiosBytes &&
+            looks_like_system_rom(head, count) && g->console->load_bios(path);
+    };
+    if (g->bios_path.empty()) {
+        std::ifstream record(join(g->support_dir, "bios.path"), std::ios::binary);
+        const std::string saved((std::istreambuf_iterator<char>(record)), {});
+        if (!saved.empty()) g->bios_path = std::filesystem::path(saved).is_absolute()
+            ? saved : join(g->support_dir, saved.c_str());
+    }
+    if (!g->bios_path.empty() && load(g->bios_path)) return true;
+
+    // Recover imports made by the earlier build, which did not remember BIOS
+    // choices. Only inspect the app's own imported content, never other apps.
+    std::vector<std::string> candidates;
+    std::error_code error;
+    auto it = std::filesystem::directory_iterator(join(g->support_dir, "Content"), error);
+    for (; !error && it != std::filesystem::directory_iterator(); it.increment(error)) {
+        if (it->is_regular_file(error)) candidates.push_back(it->path().string());
+    }
+    auto preference = [](const std::string& path) {
+        std::string name = std::filesystem::path(path).filename().string();
+        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        if (name == "panafz1.bin") return 0;
+        if (name == "panafz10.bin") return 1;
+        return name.find("arcade") != std::string::npos || name.find("saot") != std::string::npos ? 10 : 2;
+    };
+    std::stable_sort(candidates.begin(), candidates.end(), [&](const auto& a, const auto& b) {
+        return preference(a) < preference(b);
+    });
+    for (const auto& path : candidates) {
+        if (load(path)) { remember_bios(path); return true; }
+    }
+    return false;
+}
+
+// ------------------------------------------------------------------- NVRAM --
 void restore_nvram() {
-    const std::string path = join(g->support_dir, "nvram.bin");
-    std::FILE* f = std::fopen(path.c_str(), "rb");
-    if (f == nullptr) return;   // first run: the machine has already formatted one
-    std::vector<u8> data(g->console->bus().nvram_size());
-    const size_t read = std::fread(data.data(), 1, data.size(), f);
-    std::fclose(f);
-    if (read == data.size()) g->console->bus().restore_nvram(data.data(), data.size());
+    const auto bytes = g->console->bus().nvram_size();
+    const auto primary = join(g->save_dir, "nvram.bin");
+    for (const auto& path : {primary, join(g->support_dir, "nvram.bin")}) {
+        std::FILE* file = std::fopen(path.c_str(), "rb");
+        if (!file) continue;
+        std::vector<u8> data(bytes + 1);
+        const size_t count = std::fread(data.data(), 1, data.size(), file);
+        const bool valid = count == bytes && !std::ferror(file);
+        std::fclose(file);
+        if (!valid) continue;
+        g->console->bus().restore_nvram(data.data(), bytes);
+        if (!std::filesystem::exists(primary)) write_atomic(primary, data.data(), bytes);
+        return;
+    }
+    if (!std::filesystem::exists(primary)) {
+        write_atomic(primary, g->console->bus().nvram(), bytes);
+    }
 }
 
 void flush_nvram() {
-    if (g->console == nullptr) return;
-    if (!g->console->bus().nvram_dirty()) return;
-    const std::string path = join(g->support_dir, "nvram.bin");
-    std::FILE* f = std::fopen(path.c_str(), "wb");
-    if (f == nullptr) return;
-    std::fwrite(g->console->bus().nvram(), 1, g->console->bus().nvram_size(), f);
-    std::fclose(f);
-    g->console->bus().clear_nvram_dirty();
+    if (!g->console || !g->console->bus().nvram_dirty()) return;
+    const auto* data = g->console->bus().nvram();
+    const auto size = g->console->bus().nvram_size();
+    const bool backup = write_atomic(join(g->support_dir, "nvram.bin"), data, size);
+    const bool saved = write_atomic(join(g->save_dir, "nvram.bin"), data, size);
+    if (saved && backup) g->console->bus().clear_nvram_dirty();
 }
 
 // ----------------------------------------------------------------- library --
@@ -214,6 +277,7 @@ void emulate() {
         {
             std::lock_guard<std::mutex> lock(g->console_mutex);
             g->console->run_frame();
+            flush_nvram();
             const Frame frame = g->console->framebuffer();
             if (frame.pixels != nullptr && frame.width > 0 && frame.height > 0) {
                 if (g->mailbox.width() != frame.width ||
@@ -272,7 +336,12 @@ bool r3_start(const char* support_dir) {
         set_error("The machine could not be created.");
         return false;
     }
+    g->save_dir = join(g->support_dir, "saves");
+    std::error_code save_error;
+    std::filesystem::create_directories(g->save_dir, save_error);
+    if (save_error) g->save_dir = g->support_dir;
     restore_nvram();
+    restore_bios();
     library_load();
     g->audio_live.store(true, std::memory_order_release);
     g->thread = std::thread(emulate);
@@ -324,6 +393,7 @@ R3ImportKind r3_import(const char* path, char* out_name, int out_name_len) {
     // the word BIOS unless they are missing one.
     if (size <= kMaxBiosBytes && looks_like_system_rom(head, head_len) &&
         g->console->load_bios(full)) {
+        remember_bios(full);
         copy_out(nice, out_name, out_name_len);
         return R3_IMPORT_BIOS;
     }
@@ -377,6 +447,7 @@ bool r3_play_demo(void) {
 bool r3_play_disc(const char* path) {
     if (g == nullptr || path == nullptr) return false;
     std::lock_guard<std::mutex> lock(g->console_mutex);
+    if (g->console->demo_loaded()) restore_bios();
     if (!g->console->bios_loaded() || g->console->demo_loaded()) {
         set_error("This disc needs a 3DO system ROM. Add yours with the + tile.");
         return false;
@@ -396,6 +467,7 @@ void r3_stop(void) {
     g->playing.store(false, std::memory_order_relaxed);
     std::lock_guard<std::mutex> lock(g->console_mutex);
     flush_nvram();
+    if (g->console->demo_loaded()) restore_bios();
 }
 
 bool r3_is_playing(void) {

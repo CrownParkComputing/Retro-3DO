@@ -9,7 +9,11 @@
 using namespace retro3do;
 
 TEST(join_inserts_exactly_one_separator) {
+#if defined(_WIN32)
+    CHECK(path::join("/a", "b") == "/a\\b");
+#else
     CHECK(path::join("/a", "b") == "/a/b");
+#endif
     CHECK(path::join("/a/", "b") == "/a/b");
     CHECK(path::join("/a//", "b") == "/a//b");
 }
