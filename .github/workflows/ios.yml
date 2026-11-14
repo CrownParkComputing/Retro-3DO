@@ -58,41 +58,74 @@ jobs:
       - name: Build for the simulator
         run: TARGET=simulator ./ios/build-ios-macos.sh
 
-      - name: Boot a simulator and photograph the app
+      - name: Photograph the app at App Store sizes
         run: |
           set -euo pipefail
-          # ios/build, not build: build-ios-macos.sh roots BUILD_DIR at its own
-          # directory, so the tree it writes is ios/build/ios-arm64-simulator.
           app=$(find ios/build -name 'Retro-3DO.app' -type d -print -quit)
           [ -n "$app" ] || { echo "::error::no .app was built"; exit 1; }
-
-          udid=$(xcrun simctl list devices available \
-                 | awk '/^[[:space:]]+iPhone/ { print; exit }' \
-                 | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}' | head -1)
-          [ -n "$udid" ] || { echo "::error::no iPhone simulator available"; exit 1; }
-          echo "simulator $udid"
-
-          xcrun simctl boot "$udid"
-          xcrun simctl bootstatus "$udid" -b
-          xcrun simctl install "$udid" "$app"
           mkdir -p shots
 
-          shoot() {   # launch, settle, photograph, stop
-            xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO ${2:-}
-            sleep "${3:-8}"
-            xcrun simctl io "$udid" screenshot "shots/$1.png"
-            xcrun simctl terminate "$udid" com.crownparkcomputing.retro3DO || true
+          # Finds a simulator by name pattern, preferring one that already
+          # exists and creating one from a matching device type otherwise.
+          find_device() {
+            local pattern="$1" udid
+            udid=$(xcrun simctl list devices available \
+                   | awk -v p="$pattern" '$0 ~ p { print; exit }' \
+                   | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}' | head -1)
+            if [ -z "$udid" ]; then
+              local type
+              type=$(xcrun simctl list devicetypes \
+                     | awk -v p="$pattern" '$0 ~ p { print; exit }' \
+                     | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*' | head -1)
+              [ -n "$type" ] || return 1
+              udid=$(xcrun simctl create "shots-$$" "$type")
+            fi
+            echo "$udid"
           }
 
-          # What a new user sees on a fresh install: the shelf, holding only
-          # the demo tile and the add tile.
-          shoot 01-shelf "" 8
+          # $1 pattern  $2 file prefix  $3 required landscape size WxH
+          capture() {
+            local udid; udid=$(find_device "$1") || {
+              echo "::error::no simulator matching $1"; exit 1; }
+            echo "== $2 on $udid"
+            xcrun simctl boot "$udid" >/dev/null 2>&1 || true
+            xcrun simctl bootstatus "$udid" -b
+            xcrun simctl install "$udid" "$app"
 
-          # The emulator running through the Swift picture path.
-          shoot 02-demo "-autoplay-demo" 12
+            local n
+            for n in 1 2; do
+              if [ "$n" = 1 ]; then
+                xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO
+                sleep 9; local name="$2-1-shelf"
+              else
+                xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO -autoplay-demo
+                sleep 13; local name="$2-2-demo"
+              fi
+              xcrun simctl io "$udid" screenshot "shots/$name-raw.png"
+              xcrun simctl terminate "$udid" com.crownparkcomputing.retro3DO || true
 
-          # A crash leaves a black screenshot that looks like a rendering bug,
-          # so the reports are collected whether or not anything went wrong.
+              # The app is landscape-only but simctl captures the device in its
+              # physical orientation, so every shot comes out portrait and has
+              # to be turned. 270 clockwise, matching the direction that read
+              # correctly when these were checked by eye.
+              sips -r 270 "shots/$name-raw.png" --out "shots/$name.png" >/dev/null
+              rm -f "shots/$name-raw.png"
+
+              local got
+              got=$(sips -g pixelWidth -g pixelHeight "shots/$name.png" \
+                    | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{print w"x"h}')
+              echo "   $name $got"
+              # The whole point of naming the device is the size it produces.
+              # A silent fallback to the wrong device yields screenshots App
+              # Store Connect rejects, long after this job is green.
+              [ "$got" = "$3" ] || { echo "::error::$name is $got, need $3"; exit 1; }
+            done
+            xcrun simctl shutdown "$udid" || true
+          }
+
+          capture 'iPhone 1[6-9] Pro Max' iphone-6.9in 2868x1320
+          capture 'iPad Pro 13-inch'      ipad-13in   2752x2064
+
           mkdir -p shots/crashes
           cp ~/Library/Logs/DiagnosticReports/*Retro* shots/crashes/ 2>/dev/null || true
           if [ -n "$(ls -A shots/crashes 2>/dev/null)" ]; then
