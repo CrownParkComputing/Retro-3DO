@@ -19,26 +19,37 @@ struct Session: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            Screen()
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) { controlsVisible.toggle() }
+            HStack(spacing: 0) {
+                if controlsVisible {
+                    Pad.Directions(mask: $mask)
+                        .frame(width: 190)
+                        .transition(.opacity)
                 }
+                Screen()
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.2)) { controlsVisible.toggle() }
+                    }
+                if controlsVisible {
+                    Pad.Actions(mask: $mask)
+                        .frame(width: 190)
+                        .transition(.opacity)
+                }
+            }
+            .ignoresSafeArea(edges: .vertical)
 
             if controlsVisible {
                 VStack {
                     HStack {
                         Button { showingMenu = true } label: {
                             Image(systemName: "chevron.left.circle.fill")
-                                .font(.system(size: 30))
+                                .font(.system(size: 28))
                                 .foregroundStyle(Theme.ink.opacity(0.85))
-                                .padding(16)
+                                .padding(12)
                         }
                         .accessibilityLabel("Back to the shelf")
                         Spacer()
                     }
                     Spacer()
-                    Pad(mask: $mask)
                 }
                 .transition(.opacity)
             }

@@ -7,34 +7,44 @@ import SwiftUI
 // cancels when a call arrives, cannot leave a direction held down — which is
 // the classic touch-emulator bug where the character walks into a wall for
 // ever.
-struct Pad: View {
-    @Binding var mask: UInt32
+struct Pad {
+    // The two halves are separate views because the session puts the picture
+    // between them. A single view spanning the screen would have to overlay
+    // the game, and on a phone there is no margin to overlay into.
+    struct Directions: View {
+        @Binding var mask: UInt32
+        var body: some View { Pad(mask: $mask).dpad }
+    }
 
-    var body: some View {
-        HStack {
-            dpad
-            Spacer()
-            VStack(spacing: 18) {
-                HStack(spacing: 14) {
-                    small("L", R3_PAD_LEFT_SHIFT)
-                    small("P", R3_PAD_PLAY)
-                    small("X", R3_PAD_STOP)
-                    small("R", R3_PAD_RIGHT_SHIFT)
+    struct Actions: View {
+        @Binding var mask: UInt32
+        private var pad: Pad { Pad(mask: $mask) }
+        var body: some View {
+            // Two rows of two rather than one row of three: three 68pt circles
+            // side by side are wider than the margin beside a 4:3 picture.
+            VStack(spacing: 14) {
+                HStack(spacing: 10) {
+                    pad.small("L", R3_PAD_LEFT_SHIFT)
+                    pad.small("R", R3_PAD_RIGHT_SHIFT)
                 }
-                HStack(spacing: 16) {
-                    face("C", R3_PAD_C)
-                    face("B", R3_PAD_B)
-                    face("A", R3_PAD_A)
+                HStack(spacing: 14) {
+                    pad.face("C", R3_PAD_C)
+                    pad.face("B", R3_PAD_B)
+                }
+                HStack(spacing: 14) {
+                    pad.small("P", R3_PAD_PLAY)
+                    pad.face("A", R3_PAD_A)
+                    pad.small("X", R3_PAD_STOP)
                 }
             }
         }
-        .padding(.horizontal, 26)
-        .padding(.bottom, 22)
     }
+
+    @Binding var mask: UInt32
 
     // A cross, not four separate buttons: a finger between up and left should
     // give both, which is how anything with a diagonal is actually played.
-    private var dpad: some View {
+    var dpad: some View {
         ZStack {
             Circle()
                 .fill(Theme.tile.opacity(0.55))
@@ -80,11 +90,11 @@ struct Pad: View {
         }
     }
 
-    private func face(_ label: String, _ bit: UInt32) -> some View {
+    func face(_ label: String, _ bit: UInt32) -> some View {
         button(label, bit, size: 68, font: 24)
     }
 
-    private func small(_ label: String, _ bit: UInt32) -> some View {
+    func small(_ label: String, _ bit: UInt32) -> some View {
         button(label, bit, size: 44, font: 15)
     }
 

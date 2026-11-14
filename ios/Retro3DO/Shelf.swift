@@ -101,10 +101,15 @@ struct Shelf: View {
 private struct TileShape<Content: View>: View {
     @ViewBuilder var content: Content
 
+    // The aspect ratio is applied to an empty shape with the content overlaid,
+    // not to the content. Put it on the content and the content drives the
+    // frame: the Demo tile has three lines of text and came out both taller
+    // and wider than the two-line Add tile beside it.
     var body: some View {
-        content
+        Color.clear
             .frame(maxWidth: .infinity)
             .aspectRatio(4.0 / 3.0, contentMode: .fit)   // the machine's own shape
+            .overlay(content)
             .background(Theme.tile)
             .clipShape(RoundedRectangle(cornerRadius: Theme.tileCorner, style: .continuous))
             .overlay(
