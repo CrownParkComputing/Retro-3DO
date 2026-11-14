@@ -55,8 +55,18 @@ add_executable(Retro3DO MACOSX_BUNDLE
 # the catalog is attached there and skipped elsewhere: a Ninja build still
 # produces a running app, it just has a generic icon. That is the right way
 # round — a missing icon must not stop anyone building and testing.
+#
+# All three lines are load-bearing. Attaching the catalog without
+# MACOSX_PACKAGE_LOCATION compiles it but leaves CFBundleIcons out of the
+# built Info.plist, and a bundle with no CFBundleIconName is accepted by the
+# upload and then discarded in processing.
+set(RETRO3DO_XCASSETS ${CMAKE_SOURCE_DIR}/assets/apple/Assets.xcassets)
 if(CMAKE_GENERATOR STREQUAL "Xcode")
-    target_sources(Retro3DO PRIVATE ${CMAKE_SOURCE_DIR}/assets/apple/Assets.xcassets)
+    target_sources(Retro3DO PRIVATE ${RETRO3DO_XCASSETS})
+    set_source_files_properties(${RETRO3DO_XCASSETS} PROPERTIES
+        MACOSX_PACKAGE_LOCATION Resources)
+    set_target_properties(Retro3DO PROPERTIES
+        XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
 
 target_include_directories(Retro3DO PRIVATE
@@ -100,7 +110,6 @@ set_target_properties(Retro3DO PROPERTIES
     XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"            # iPhone and iPad
     XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES"
     XCODE_ATTRIBUTE_ENABLE_BITCODE "NO"
-    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
     XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
     XCODE_ATTRIBUTE_INSTALL_PATH "$(LOCAL_APPS_DIR)"
     XCODE_ATTRIBUTE_CODE_SIGN_STYLE "${RETRO3DO_CODE_SIGN_STYLE}"

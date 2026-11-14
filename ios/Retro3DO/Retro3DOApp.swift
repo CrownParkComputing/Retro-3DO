@@ -9,7 +9,18 @@ struct Retro3DOApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(engine)
-                .task { engine.start() }
+                .task {
+                    engine.start()
+                    // CI photographs the app on a simulator, where there is no
+                    // way to tap a tile: simctl can boot, install and launch,
+                    // and nothing else. This is the only way a screenshot can
+                    // show the emulator actually running rather than the shelf
+                    // standing still. It does nothing unless the argument is
+                    // passed, which no shipped launch ever does.
+                    if CommandLine.arguments.contains("-autoplay-demo") {
+                        engine.playDemo()
+                    }
+                }
                 .preferredColorScheme(.dark)
         }
         .onChange(of: phase) { newPhase in

@@ -39,6 +39,72 @@ jobs:
       - name: Build for the simulator
         run: TARGET=simulator ./ios/build-ios-macos.sh
 
+  # Boots a simulator, installs the app and photographs it.
+  #
+  # A build that compiles proves nothing about whether the app draws: this is
+  # the job that produces something a person can look at. simctl can boot,
+  # install and launch and nothing else -- there is no way to tap a tile from
+  # a script -- so the second shot is taken with -autoplay-demo, which the app
+  # honours only when that argument is passed.
+  screenshots:
+    name: iOS simulator screenshots
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Build for the simulator
+        run: TARGET=simulator ./ios/build-ios-macos.sh
+
+      - name: Boot a simulator and photograph the app
+        run: |
+          set -euo pipefail
+          app=$(find build/ios-arm64-simulator -maxdepth 4 -name 'Retro-3DO.app' -print -quit)
+          [ -n "$app" ] || { echo "::error::no .app was built"; exit 1; }
+
+          udid=$(xcrun simctl list devices available \
+                 | awk '/^[[:space:]]+iPhone/ { print; exit }' \
+                 | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}' | head -1)
+          [ -n "$udid" ] || { echo "::error::no iPhone simulator available"; exit 1; }
+          echo "simulator $udid"
+
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl install "$udid" "$app"
+          mkdir -p shots
+
+          shoot() {   # launch, settle, photograph, stop
+            xcrun simctl launch "$udid" com.crownparkcomputing.retro3DO ${2:-}
+            sleep "${3:-8}"
+            xcrun simctl io "$udid" screenshot "shots/$1.png"
+            xcrun simctl terminate "$udid" com.crownparkcomputing.retro3DO || true
+          }
+
+          # What a new user sees on a fresh install: the shelf, holding only
+          # the demo tile and the add tile.
+          shoot 01-shelf "" 8
+
+          # The emulator running through the Swift picture path.
+          shoot 02-demo "-autoplay-demo" 12
+
+          # A crash leaves a black screenshot that looks like a rendering bug,
+          # so the reports are collected whether or not anything went wrong.
+          mkdir -p shots/crashes
+          cp ~/Library/Logs/DiagnosticReports/*Retro* shots/crashes/ 2>/dev/null || true
+          if [ -n "$(ls -A shots/crashes 2>/dev/null)" ]; then
+            echo "::warning::the app left a crash report"
+            head -40 shots/crashes/* || true
+          fi
+          ls -la shots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retro3do-screenshots
+          path: shots
+
   # Signed device build, archived and uploaded to App Store Connect.
   #
   # Gated on SIGNING_PASSPHRASE and simply does not run without it, so a fork
