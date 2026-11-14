@@ -23,15 +23,13 @@ namespace {
 constexpr long kMaxBiosBytes = 4L * 1024 * 1024;
 
 // Size alone is not enough, and assuming it was is a trap worth naming:
-// Console::load_bios accepts any file that fits the ROM window — it has no
-// opinion about the contents — so classifying by size would greet a user who
+// Console::load_bios accepts any file that fits the ROM window -- it has no
+// opinion about the contents -- so classifying by size would greet a user who
 // picked the wrong small file with "System ROM added", and then fail every
-// disc afterwards for reasons they could not possibly guess.
-//
-// The ARM60 boots from the bottom of ROM into the standard ARM exception
-// vector table: eight words, each a branch. Real BIOS images and this
-// project's own demo ROM alike begin 0xEA — ARM's unconditional B, big-endian.
-// A file that does not is not something this machine could ever execute.
+// disc afterwards for reasons they could not possibly guess. The shape check
+// lives in the core, beside the loader it is guarding, so the folder scanner
+// on Android and the desktop uses exactly the same rule.
+
 // The same trap on the disc side: Disc is a sector source and Console::load_disc
 // asks it only to open, so a 2 KB file of nothing opens happily and would have
 // appeared on the shelf as a game. A 3DO disc says what it is in its first
@@ -324,7 +322,7 @@ R3ImportKind r3_import(const char* path, char* out_name, int out_name_len) {
     // Small enough and shaped like one: try it as a system ROM. Succeeding both
     // tells us what the file is and leaves it loaded, so the user never sees
     // the word BIOS unless they are missing one.
-    if (size <= kMaxBiosBytes && looks_like_a_system_rom(head, head_len) &&
+    if (size <= kMaxBiosBytes && looks_like_system_rom(head, head_len) &&
         g->console->load_bios(full)) {
         copy_out(nice, out_name, out_name_len);
         return R3_IMPORT_BIOS;

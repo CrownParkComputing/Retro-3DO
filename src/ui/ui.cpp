@@ -792,7 +792,14 @@ void Ui::draw_launcher(Console& console, bool emulating, bool touch_visible,
     // leaving it returns there rather than dropping the user on the library.
     nav_button("SETTINGS", Page::Settings);
     nav_button("SYSTEM", Page::System);
+    // next_nav() first, like every other button on this rail. Without it the
+    // button is drawn with no layout step and lands on top of its neighbour,
+    // which is why there appeared to be no way to run the walkthrough again.
+    next_nav();
+    ImGui::PushStyleColor(ImGuiCol_Button, tinted(kAmber, 0.30f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, tinted(kAmber, 0.46f));
     if (ImGui::Button("GUIDE", ImVec2(action_width, 40.0f * scale_))) open_guide();
+    ImGui::PopStyleColor(2);
     nav_button("ABOUT", Page::About);
     if (session_available_) {
         next_nav();
@@ -1718,6 +1725,18 @@ void Ui::draw_guide(Console& console, UiIntent& intent) {
                     guide_open_ = false;
                     guide_resume_ = true;
                 }
+                break;
+            case kActionEditLayout:
+                // Needs the picture behind it to drag against, so this leaves
+                // the guide the way the demonstration does.
+                intent.start_demo = true;
+                intent.toggle_layout_edit = true;
+                session_available_ = true;
+                show_launcher_ = false;
+                guide_open_ = false;
+                guide_demo_ = true;
+                guide_demo_step_ = guide_step_;
+                wake_menu_button();
                 break;
             case kActionNone:
                 break;

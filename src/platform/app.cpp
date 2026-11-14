@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
+#include <unistd.h>
 
 #include "core/console.h"
 #include "core/frame_mailbox.h"
@@ -845,6 +847,24 @@ namespace {
 // Without this a folder chosen on the desktop scans to nothing: the scanner
 // was written for Android's document URIs, and the list call it makes is a
 // stub returning empty on every other platform.
+// The first 32 bytes of a file, however this platform hands files out. Enough
+// to recognise an ARM exception vector table and nothing more; reading a whole
+// candidate to decide it is not a ROM would be silly on a folder of CHDs.
+bool read_head(const std::string& target, u8* head, std::size_t len) {
+    if (AndroidStorage::available()) {
+        const int fd = AndroidStorage::open_document(target);
+        if (fd < 0) return false;
+        const ssize_t got = ::read(fd, head, len);
+        ::close(fd);
+        return got == static_cast<ssize_t>(len);
+    }
+    std::FILE* file = std::fopen(target.c_str(), "rb");
+    if (file == nullptr) return false;
+    const size_t got = std::fread(head, 1, len, file);
+    std::fclose(file);
+    return got == len;
+}
+
 std::vector<DocumentEntry> list_folder(const std::string& folder) {
     if (AndroidStorage::available()) return AndroidStorage::list(folder);
 
@@ -880,6 +900,8 @@ void App::scan_games_folder(const std::string& name, const std::string& target) 
     library_.replace({});
     std::vector<std::pair<std::string, int>> pending{{target, 0}};
     size_t added = 0;
+    std::string bios_candidate;
+    std::string bios_candidate_name;
     for (size_t cursor = 0; cursor < pending.size() && cursor < 1024 && added < 2048;
          ++cursor) {
         const auto [folder, depth] = pending[cursor];
@@ -895,7 +917,21 @@ void App::scan_games_folder(const std::string& name, const std::string& target) 
                 if (depth < 8) pending.emplace_back(entry.uri, depth + 1);
                 continue;
             }
-            if (!has_disc_extension(entry.name)) continue;
+            if (!has_disc_extension(entry.name)) {
+                // A system ROM sitting in the same folder as the games is the
+                // normal way people keep these, so finding one is the app's
+                // job rather than something to ask about. Recognised by its
+                // ARM vectors, not by being called bios.rom.
+                if (bios_candidate.empty()) {
+                    u8 head[32] = {0};
+                    if (read_head(entry.uri, head, sizeof head) &&
+                        looks_like_system_rom(head, sizeof head)) {
+                        bios_candidate = entry.uri;
+                        bios_candidate_name = entry.name;
+                    }
+                }
+                continue;
+            }
             const std::string lower = lowercased(entry.name);
             if (folder_has_cue && lower.size() > 4 &&
                 lower.compare(lower.size() - 4, 4, ".bin") == 0) {
@@ -908,6 +944,19 @@ void App::scan_games_folder(const std::string& name, const std::string& target) 
     ui_->set_game_library(library_.games());
     save_settings();
     SDL_Log("Setup library scan added %zu game%s", added, added == 1 ? "" : "s");
+    // A ROM found beside the games is loaded only when the machine has none.
+    // Never over the top of one the user chose: they picked that for a reason,
+    // and silently swapping it for whatever a scan turned up is the sort of
+    // thing nobody can diagnose.
+    if (!bios_candidate.empty() && !console_->bios_loaded()) {
+        if (open_bios(bios_candidate, bios_candidate_name)) {
+            settings_->set(settings_key::kBiosPath, bios_candidate);
+            settings_->set(settings_key::kBiosName, bios_candidate_name);
+            save_settings();
+            SDL_Log("Adopted system ROM found in the games folder: %s",
+                    bios_candidate_name.c_str());
+        }
+    }
 }
 
 void App::save_settings() {

@@ -34,6 +34,7 @@ enum GuideAction : unsigned {
     kActionAddGame,       // import a disc image: Downloads, Files, anywhere
     kActionAddBios,       // import a system ROM, filed wherever this platform keeps it
     kActionChooseFolder,  // grant or point at the folder games live in
+    kActionEditLayout,    // move the on-screen controls where the hand wants them
 };
 
 struct GuideStep {

@@ -44,11 +44,15 @@ std::vector<TouchControl> default_touch_layout(int width, int height) {
         {PadButton::Left,  "", dpad_x - ax(spread), dpad_y,              dpad_radius},
         {PadButton::Right, "", dpad_x + ax(spread), dpad_y,              dpad_radius},
 
-        // A, B and C in a shallow arc, as they sit on the real pad, so the
-        // thumb travels naturally between them rather than in a straight line.
-        {PadButton::C, "C", face_x - ax(face_spread), face_y + ay(0.040f), face_radius},
+        // A, B and C in a shallow arc so the thumb travels naturally between
+        // them rather than in a straight line, reading A, B, C left to right.
+        //
+        // This used to be the other way round, C on the left, with a comment
+        // saying that was how they sit on the real pad. Jon, who owns one,
+        // says it is wrong. Taking the owner's word over the comment.
+        {PadButton::A, "A", face_x - ax(face_spread), face_y + ay(0.040f), face_radius},
         {PadButton::B, "B", face_x,                   face_y - ay(0.025f), face_radius},
-        {PadButton::A, "A", face_x + ax(face_spread), face_y + ay(0.040f), face_radius},
+        {PadButton::C, "C", face_x + ax(face_spread), face_y + ay(0.040f), face_radius},
 
         {PadButton::LeftShift,  "L", ax(0.10f),        ay(0.10f), 0.046f},
         {PadButton::RightShift, "R", 1.0f - ax(0.10f), ay(0.10f), 0.046f},

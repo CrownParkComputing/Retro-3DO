@@ -8,6 +8,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -39,6 +40,15 @@ struct Frame {
     int width  = 0;
     int height = 0;
 };
+
+// Whether these opening bytes look like a 3DO system ROM.
+//
+// Console::load_bios has no opinion about contents -- it takes anything that
+// fits the ROM window -- so anything deciding WHETHER a file is a system ROM
+// has to ask this first. The ARM60 boots into the standard ARM exception
+// vector table: eight words, each a branch, so a real image and this project's
+// own demo ROM alike begin 0xEA.
+bool looks_like_system_rom(const u8* head, std::size_t len);
 
 class Console : public DspHost {
 public:

@@ -37,11 +37,14 @@ struct Pad {
                     pad.small("L", R3_PAD_LEFT_SHIFT, small)
                     pad.small("R", R3_PAD_RIGHT_SHIFT, small)
                 }
+                // A, B, C in reading order, matching the arc on the desktop
+                // layout. The column is too narrow for three across, so it is
+                // two then one rather than a different order.
                 HStack(spacing: unit * 0.07) {
-                    pad.face("C", R3_PAD_C, face)
+                    pad.face("A", R3_PAD_A, face)
                     pad.face("B", R3_PAD_B, face)
                 }
-                pad.face("A", R3_PAD_A, face)
+                pad.face("C", R3_PAD_C, face)
                 HStack(spacing: unit * 0.06) {
                     pad.small("P", R3_PAD_PLAY, small)
                     pad.small("X", R3_PAD_STOP, small)

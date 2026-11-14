@@ -95,6 +95,19 @@ Console::Console() : cpu_(bus_), clio_(cpu_), vdlp_(bus_), madam_(bus_), sport_(
 
 Console::~Console() = default;
 
+bool looks_like_system_rom(const u8* head, std::size_t len) {
+    if (head == nullptr || len < 32) return false;
+    if (head[0] != 0xEA) return false;          // the reset vector must branch
+    int vectors = 0;
+    for (std::size_t word = 0; word < 8; ++word) {
+        const u8 top = head[word * 4];
+        // B, or the LDR/LDM forms some ROMs use to jump further than a branch
+        // can reach.
+        if (top == 0xEA || top == 0xE5 || top == 0xE9) ++vectors;
+    }
+    return vectors >= 4;
+}
+
 bool Console::load_bios(const std::string& path) {
     std::FILE* file = std::fopen(path.c_str(), "rb");
     if (file == nullptr) {

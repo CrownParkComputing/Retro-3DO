@@ -100,6 +100,15 @@ TEST(movement_is_on_the_left_and_actions_on_the_right) {
     CHECK(find(layout, PadButton::C)->x > 0.6f);
 }
 
+TEST(the_face_buttons_read_a_b_c_from_left_to_right) {
+    // The order on the real pad, and the one thing about this cluster a player
+    // notices instantly if it is wrong. It shipped the other way round once,
+    // with a comment asserting that was correct, and nothing caught it.
+    const std::vector<TouchControl> layout = default_touch_layout(1280, 720);
+    CHECK(find(layout, PadButton::A)->x < find(layout, PadButton::B)->x);
+    CHECK(find(layout, PadButton::B)->x < find(layout, PadButton::C)->x);
+}
+
 TEST(the_shoulder_buttons_are_up_out_of_the_way) {
     // They sit where a thumb does not rest, so they are not pressed by accident
     // while holding the device.

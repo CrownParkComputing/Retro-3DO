@@ -115,6 +115,18 @@ const GuideStep kSteps[] = {
         kActionNone, nullptr
     },
     {
+        "Put the controls where you want them",
+        "The on-screen pad starts where it suits most hands: the directional "
+        "cross on the left, A, B and C on the right in that order, and the "
+        "shoulder buttons out of the way at the top.\n\n"
+        "Hands differ. Every control can be dragged wherever you want it and "
+        "the arrangement is remembered, so it is worth a minute now rather "
+        "than fighting it later.",
+        nullptr,
+        kGuideIos | kGuideAndroid, kViolet, kActionEditLayout,
+        "Arrange my controls", kActionNone, nullptr
+    },
+    {
         "The controls",
         "The 3DO pad is drawn either side of the picture, never over it: the "
         "directional cross on one side, and A, B and C on the other.\n\n"
