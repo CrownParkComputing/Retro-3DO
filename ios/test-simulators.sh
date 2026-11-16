@@ -27,6 +27,33 @@ print(subprocess.check_output(["xcrun", "simctl", "create", "Spryte-" + pattern,
 ' "$1"
 }
 
+# The App Store preview video.
+#
+# Recorded in its own pass, after the screenshot flows, and never alongside
+# them: a still taken while recordVideo is running comes back a two-colour
+# frame, which passes every automatic check and is useless.
+#
+# Length is not controlled here. simctl writes the file when it is interrupted,
+# so this records however long the flow takes and the result is trimmed to
+# Apple's 15-30s window afterwards, where the exact cut can be chosen by
+# watching it.
+record_preview() {
+    local udid="$1" prefix="$2"
+    mkdir -p previews
+    echo "Recording preview on $prefix"
+    xcrun simctl io "$udid" recordVideo --codec h264 --force "previews/$prefix.mov" &
+    local recorder=$!
+    sleep 3                      # let the recorder attach before anything moves
+    maestro --udid "$udid" test ios/tests/preview-video.yaml || \
+        echo "::warning::preview flow failed on $prefix; keeping whatever was recorded"
+    sleep 2
+    # SIGINT, not SIGKILL: simctl finalises the movie on interrupt and leaves a
+    # truncated, unplayable file on anything harsher.
+    kill -INT "$recorder" 2>/dev/null || true
+    wait "$recorder" 2>/dev/null || true
+    ls -la "previews/$prefix.mov" || echo "::warning::no preview recorded for $prefix"
+}
+
 test_device() {
     local udid; udid=$(find_device "$1")
     local prefix="$2"
@@ -58,6 +85,8 @@ PY
         maestro --udid "$udid" test --test-output-dir "shots/$prefix-portrait" \
             --format junit --output "shots/$prefix-portrait.xml" ios/tests/ipad-portrait.yaml
     fi
+
+    record_preview "$udid" "$prefix"
     xcrun simctl shutdown "$udid"
 }
 

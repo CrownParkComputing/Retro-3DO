@@ -113,6 +113,16 @@ jobs:
           path: shots
           if-no-files-found: error
 
+      # The raw simulator recording. Converted to Apple's preview sizes and
+      # trimmed to the 15-30s window off the runner, where the cut can be
+      # chosen by watching it rather than guessed.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spryte-preview-${{ matrix.device }}
+          path: previews
+          if-no-files-found: warn
+
   # Signed device build, archived and uploaded to App Store Connect.
   #
   # Gated on SIGNING_PASSPHRASE and simply does not run without it, so a fork

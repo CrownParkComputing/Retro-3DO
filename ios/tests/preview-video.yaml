@@ -1,0 +1,70 @@
+# The App Store preview video, recorded while this runs.
+#
+# Deliberately not one of the test flows: those assert and reset state, and a
+# preview has to read as somebody using the app rather than a suite passing.
+# It opens on the shelf, starts the demonstration and plays with it.
+#
+# Only the built-in demo is ever shown. A preview showing a commercial 3DO
+# game would be putting somebody else's copyrighted work in our marketing,
+# which is a different rejection entirely.
+#
+# Duration is not controlled here. The recording is trimmed to Apple's 15-30s
+# window afterwards, so this just needs to be comfortably longer than 15s and
+# to never fail.
+appId: com.crownparkcomputing.spryte
+---
+- launchApp:
+    clearState: true
+- setOrientation: LANDSCAPE_LEFT
+
+# First run opens the guide. A preview should open on the shelf, which is the
+# app's actual face, so skip past it.
+- tapOn: "Skip"
+- assertVisible: "Play the demo"
+- waitForAnimationToEnd
+
+# The shelf, held long enough to read.
+- waitForAnimationToEnd:
+    timeout: 2000
+
+- tapOn: "Play the demo"
+- assertVisible:
+    id: emulator-screen
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# The hardware test finishes, then the marker is yours. A, B and C recolour it;
+# the d-pad moves it. Tapped by point because the d-pad is one drag region
+# rather than four buttons.
+- tapOn: "Button A"
+- waitForAnimationToEnd
+- tapOn: "Button B"
+- waitForAnimationToEnd
+- tapOn: "Button C"
+- waitForAnimationToEnd
+
+- tapOn:
+    point: "12%,38%"
+- waitForAnimationToEnd
+- tapOn:
+    point: "12%,62%"
+- waitForAnimationToEnd
+- tapOn:
+    point: "6%,50%"
+- waitForAnimationToEnd
+- tapOn:
+    point: "18%,50%"
+- waitForAnimationToEnd
+
+- tapOn: "Button A"
+- waitForAnimationToEnd
+- tapOn: "Button C"
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# Back out the way a person would, so the preview ends on the shelf.
+- tapOn: "Session menu"
+- tapOn: "Back to the shelf"
+- assertVisible: "Play the demo"
+- waitForAnimationToEnd:
+    timeout: 2000
