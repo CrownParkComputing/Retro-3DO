@@ -1,4 +1,4 @@
-appId: com.crownparkcomputing.retro3DO
+appId: com.crownparkcomputing.spryte
 ---
 - setOrientation: PORTRAIT
 - tapOn: "Settings"

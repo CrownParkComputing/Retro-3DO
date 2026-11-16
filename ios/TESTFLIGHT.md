@@ -19,17 +19,27 @@ GitHub Actions secret and is **not** in `~/secrets.env`.
 ```sh
 git clone -b ios-shelf https://github.com/CrownParkComputing/Retro-3DO.git
 cd Retro-3DO && git submodule update --init --recursive
+# The repository is still named Retro-3DO; the iOS app it builds is Spryte.
 
 # 1. Does the Swift compile at all? Nothing has ever built it.
 TARGET=simulator ./ios/build-ios-macos.sh
 
-# 2. Decrypt the signing material.
+# 2. Decrypt the signing material. The provisioning profile is NOT among it:
+#    it is fetched from Apple in step 2b, so that renaming the bundle
+#    identifier does not need the passphrase and a profile cannot go stale.
 D=$(mktemp -d); export PASS='<the passphrase>'
-for f in dist.p12 profile.mobileprovision asc_key.p8 signing.env; do
+for f in dist.p12 asc_key.p8 signing.env; do
   openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
     -in "ios/signing/$f.enc" -out "$D/$f" -pass env:PASS
 done
 . "$D/signing.env"
+
+# 2b. Fetch the profile with the API key just decrypted.
+ASC_KEY_ID="$ASC_KEY_ID" ASC_ISSUER_ID="$ASC_ISSUER_ID" \
+ASC_KEY_PATH="$D/asc_key.p8" \
+  python3 ios/fetch-profile.py \
+    --bundle-id com.crownparkcomputing.spryte \
+    --out "$D/profile.mobileprovision"
 
 security create-keychain -p build build.keychain
 security default-keychain -s build.keychain
@@ -48,7 +58,7 @@ RETRO3DO_BUILD_NUMBER="$(date -u +%Y%m%d%H%M)" \
   ./ios/build-ios-macos.sh
 
 # 4. Upload.
-xcrun altool --upload-app -f build-ios/Retro-3DO.ipa -t ios \
+xcrun altool --upload-app -f build-ios/Spryte.ipa -t ios \
   --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 ```
 

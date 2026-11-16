@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: retro3do-ios-${{ github.ref }}
+  group: spryte-ios-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -46,13 +46,13 @@ jobs:
 
       - name: Package the simulator application for device checks
         run: |
-          app=$(find ios/build -name 'Retro-3DO.app' -type d -print -quit)
+          app=$(find ios/build -name 'Spryte.app' -type d -print -quit)
           test -n "$app"
-          ditto -c -k --keepParent "$app" /tmp/retro3do-simulator.zip
+          ditto -c -k --keepParent "$app" /tmp/spryte-simulator.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: retro3do-simulator
-          path: /tmp/retro3do-simulator.zip
+          name: spryte-simulator
+          path: /tmp/spryte-simulator.zip
 
   # Exercise the native wizard and session transitions on both device families.
   screenshots:
@@ -69,12 +69,12 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
-          name: retro3do-simulator
-          path: /tmp/retro3do-simulator
+          name: spryte-simulator
+          path: /tmp/spryte-simulator
       - name: Install the verified simulator application
         run: |
           mkdir -p ios/build
-          ditto -x -k /tmp/retro3do-simulator/retro3do-simulator.zip ios/build
+          ditto -x -k /tmp/spryte-simulator/spryte-simulator.zip ios/build
 
       - uses: actions/setup-java@v4
         with:
@@ -104,7 +104,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: retro3do-screenshots-${{ matrix.device }}
+          name: spryte-screenshots-${{ matrix.device }}
           path: shots
           if-no-files-found: error
 
@@ -112,7 +112,8 @@ jobs:
   #
   # Gated on SIGNING_PASSPHRASE and simply does not run without it, so a fork
   # sees the simulator job and nothing else. The signing material lives in
-  # ios/signing/*.enc, all four encrypted under that one passphrase.
+  # ios/signing/*.enc, all three encrypted under that one passphrase. The
+  # provisioning profile is not among them -- it is fetched from Apple below.
   release:
     name: iOS signed archive
     runs-on: macos-26
@@ -125,7 +126,7 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ios-shelf'
     env:
       HAS_SIGNING: ${{ secrets.SIGNING_PASSPHRASE != '' }}
-      BUNDLE_ID: com.crownparkcomputing.retro3DO
+      BUNDLE_ID: com.crownparkcomputing.spryte
       TEAM_ID: 88A3T9K9C5
     steps:
       - uses: actions/checkout@v5
@@ -155,10 +156,27 @@ jobs:
           dec() { openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
                     -in "ios/signing/$1" -out "$D/$2" -pass env:PASS; }
           dec dist.p12.enc                dist.p12
-          dec profile.mobileprovision.enc profile.mobileprovision
           dec asc_key.p8.enc              asc_key.p8
           dec signing.env.enc             signing.env
           echo "D=$D" >> "$GITHUB_ENV"
+
+      # The profile comes from Apple, not from a blob in the repository. It used
+      # to be ios/signing/profile.mobileprovision.enc, which meant the bundle
+      # identifier could only be changed by whoever holds SIGNING_PASSPHRASE,
+      # and that a profile could silently go stale in the year it expires. A
+      # profile is not secret -- the private key is in dist.p12 and stays there
+      # -- so it is fetched every build with the API key decrypted above.
+      - name: Fetch the provisioning profile
+        if: env.HAS_SIGNING == 'true'
+        run: |
+          set -euo pipefail
+          . "$D/signing.env"
+          ASC_KEY_ID="$ASC_KEY_ID" \
+          ASC_ISSUER_ID="$ASC_ISSUER_ID" \
+          ASC_KEY_PATH="$D/asc_key.p8" \
+          python3 ios/fetch-profile.py \
+            --bundle-id "$BUNDLE_ID" \
+            --out "$D/profile.mobileprovision"
 
       - name: Import signing certificate
         if: env.HAS_SIGNING == 'true'
@@ -208,7 +226,7 @@ jobs:
         if: env.HAS_SIGNING == 'true'
         run: |
           set -euo pipefail
-          app=ios/build/ios-arm64/Retro-3DO.xcarchive/Products/Applications/Retro-3DO.app
+          app=ios/build/ios-arm64/Spryte.xcarchive/Products/Applications/Spryte.app
           plist="$app/Info.plist"
           [ -f "$plist" ] || { echo "::error::no app in the archive"; exit 1; }
           need() {
@@ -220,7 +238,7 @@ jobs:
           got=$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$plist")
           [ "$got" = "$BUNDLE_ID" ] || {
             echo "::error::bundle id is $got, expected $BUNDLE_ID"; exit 1; }
-          bin="$app/Retro-3DO"
+          bin="$app/Spryte"
           check_api() {
             if nm -u "$bin" 2>/dev/null | grep -q "$1"; then
               need "$2"; echo "  $1 is linked -> $2 present"
@@ -251,6 +269,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: retro3do-ios
+          name: spryte-ios
           path: ios/build/ios-arm64/export/*.ipa
           if-no-files-found: ignore

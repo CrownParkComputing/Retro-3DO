@@ -76,7 +76,7 @@ CMake cache variables, if driving the build by hand:
 
 | Variable | Default | What it does |
 |---|---|---|
-| `RETRO3DO_BUNDLE_ID` | `com.crownparkcomputing.retro3DO` | Bundle identifier, both platforms |
+| `RETRO3DO_BUNDLE_ID` | `com.crownparkcomputing.spryte` | Bundle identifier, both platforms. The iOS app ships as Spryte; see src/core/product.h |
 | `RETRO3DO_APPLE_TEAM_ID` | *(empty)* | Empty disables signing entirely |
 | `RETRO3DO_MARKETING_VERSION` | `1.0` | `CFBundleShortVersionString` |
 | `RETRO3DO_BUILD_NUMBER` | `1` | `CFBundleVersion` — must increase on every upload |
@@ -87,10 +87,12 @@ CMake cache variables, if driving the build by hand:
 
 In rough order of likelihood.
 
-1. **The generated project is `Retro3DO.xcodeproj` and the scheme is
-   `retro3do`** (the CMake target name), while the product is `Retro-3DO.app`
-   (its `OUTPUT_NAME`). If `xcodebuild` reports an unknown scheme, that is the
-   name to check first — nothing else is wrong.
+1. **The scheme is the CMake target name, and the product is its
+   `OUTPUT_NAME`** — and the two differ per platform, which is the usual cause
+   of an "unknown scheme". On iOS the project is `Spryte.xcodeproj`, the scheme
+   is `Spryte` and the product is `Spryte.app`. On macOS the scheme is
+   `retro3do` and the product is `Retro-3DO.app`. If `xcodebuild` reports an
+   unknown scheme, that is the name to check first — nothing else is wrong.
 2. **SDL's own CMake decides the Apple backends.** The vendored SDL builds
    static everywhere except Android. If SDL fails to configure for iOS, fix it
    in SDL's options, not by adding platform code here.
@@ -113,11 +115,11 @@ In rough order of likelihood.
 This is the part users get stuck on, and it differs per platform.
 
 - **iOS**: `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace` are
-  both set, so *Retro-3DO* appears under **On My iPhone** in the Files app.
+  both set, so *Spryte* appears under **On My iPhone** in the Files app.
   Anything dropped there lands in `Documents`, which is the first root the
   in-app browser offers. A `.chd` alongside the BIOS is all it takes.
 - **Simulator**: no Files sharing. Copy into the container by hand —
-  `xcrun simctl get_app_container booted com.crownparkcomputing.retro3DO data`
+  `xcrun simctl get_app_container booted com.crownparkcomputing.spryte data`
   prints the path.
 - **macOS**: the app is unsandboxed, so its browser reaches the user's own
   disks. `Downloads`, `Documents` and `Home` are offered as roots. A disc image
@@ -132,7 +134,7 @@ This is the part users get stuck on, and it differs per platform.
 xcrun altool --upload-app -f <ipa> -t ios --apiKey <key> --apiIssuer <issuer>
 ```
 
-Retro-3DO's iOS build does not offer BIOS or game downloads. Users import their
+Spryte, the iOS build, does not offer BIOS or game downloads. Users import their
 own lawfully obtained BIOS and discs through Files. The only executable 3DO
 content bundled with the application is the original demonstration ROM in
 `demo/`; its full source is shipped in the repository and it contains no

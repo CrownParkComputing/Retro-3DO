@@ -21,7 +21,13 @@ option(RETRO3DO_BUILD_TESTS "Build the host test suite" ON)
 # APPLE covers both; IOS is set by CMake when CMAKE_SYSTEM_NAME=iOS, so
 # "APPLE AND NOT IOS" is the macOS test used throughout this file.
 # ---------------------------------------------------------------------------
-set(RETRO3DO_BUNDLE_ID "com.crownparkcomputing.retro3DO" CACHE STRING
+# com.crownparkcomputing.spryte, not .retro3DO. The Retro-3DO App Store record
+# was rejected twice under guideline 4.3 and a bundle identifier cannot be
+# changed on an existing record, so the iOS product ships as Spryte against a
+# new identifier. Nothing is published under the old one. The macOS target
+# shares this default and is not on the App Store; override it there if that
+# ever changes.
+set(RETRO3DO_BUNDLE_ID "com.crownparkcomputing.spryte" CACHE STRING
     "Bundle identifier for the iOS and macOS apps")
 set(RETRO3DO_APPLE_TEAM_ID "" CACHE STRING
     "Apple Developer Team ID. Leave empty for an unsigned local build")
@@ -118,6 +124,22 @@ add_library(retro3do_core STATIC
 if(RETRO3DO_TRACING)
     target_compile_definitions(retro3do_core PUBLIC RETRO3DO_TRACING=1)
 endif()
+
+# One codebase, two product names. The iOS app ships as Spryte against a new
+# bundle identifier, because the Retro-3DO App Store record was rejected under
+# guideline 4.3 and an identifier cannot be changed on an existing record. The
+# Android and desktop app is published as Retro-3DO and keeps that name.
+#
+# The walkthrough in src/core/guide.cpp is written once for all three platforms,
+# so the name inside those sentences comes from here rather than being a
+# literal. See src/core/product.h.
+if(IOS)
+    set(RETRO3DO_PRODUCT_NAME "Spryte")
+else()
+    set(RETRO3DO_PRODUCT_NAME "Retro-3DO")
+endif()
+target_compile_definitions(retro3do_core PUBLIC
+    RETRO3DO_PRODUCT_NAME="${RETRO3DO_PRODUCT_NAME}")
 
 target_include_directories(retro3do_core PUBLIC src)
 target_link_libraries(retro3do_core PRIVATE chdr-static)

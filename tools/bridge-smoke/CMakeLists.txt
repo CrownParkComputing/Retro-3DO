@@ -38,6 +38,12 @@ target_include_directories(retro3do_core_host PUBLIC
     ${R3_ROOT}/src ${R3_ROOT}/src/core ${R3_ROOT}/src/ui)
 target_link_libraries(retro3do_core_host PRIVATE chdr-static)
 
+# This harness stands in for the iOS app, so it must see the strings the iOS app
+# ships -- "Spryte", not the Android name. Without this the smoke test would
+# happily print a product name no iOS user will ever see.
+target_compile_definitions(retro3do_core_host PUBLIC
+    RETRO3DO_PRODUCT_NAME="Spryte")
+
 find_package(Threads REQUIRED)
 add_executable(bridge_smoke
     ${R3_ROOT}/ios/bridge/retro3do_bridge.cpp

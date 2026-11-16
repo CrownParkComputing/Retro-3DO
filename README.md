@@ -12,7 +12,7 @@ target, and Dear ImGui draws the launcher and the in-game overlay.
 > is mounted through XBUS/MADAM DMA, and the ARM, CEL, matrix and DSP paths run
 > commercial titles. Compatibility is still in progress, but Road Rash and The
 > Need for Speed both boot into correctly rendered gameplay. See
-> [Roadmap](#roadmap) and the [Opera parity audit](docs/OPERA_AUDIT.md).
+> [Roadmap](#roadmap).
 
 ## Why this exists as a separate core
 

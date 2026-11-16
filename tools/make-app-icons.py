@@ -228,11 +228,16 @@ def main():
 
     flat.save(os.path.join(HERE, "assets", "branding", "retro3do-icon-1024.png"))
 
-    # Apple: one alpha-free 1024 for iOS, the 16..1024 ladder for macOS.
-    apple = os.path.join(HERE, "assets", "apple", "Assets.xcassets", "AppIcon.appiconset")
-    flat.save(os.path.join(apple, "icon-ios-1024.png"))
-    for px in (16, 32, 64, 128, 256, 512, 1024):
-        flat.resize((px, px), Image.LANCZOS).save(os.path.join(apple, f"icon-mac-{px}.png"))
+    # Apple is deliberately not written here any more.
+    #
+    # assets/apple/Assets.xcassets belongs to the iOS app, which ships as Spryte
+    # and must not carry the family template: guideline 4.3(a) rejected that app
+    # for sharing assets with the account's others, and this script's whole
+    # purpose is to make every app's icon from one composition. Spryte's icon is
+    # built by tools/make-spryte-icon.py and nothing else may overwrite it.
+    #
+    # This script still owns the Android and Play icons below, which are the
+    # Retro-3DO app and are published under that name.
 
     res = os.path.join(HERE, "android", "app", "src", "main", "res")
     legacy = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}

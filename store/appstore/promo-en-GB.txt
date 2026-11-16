@@ -1,1 +1,1 @@
-A 3DO emulator written for phones, with an original hardware demo built in.
+The 3DO's own word for the thing it drew. One shelf, your own discs, and a hardware demo that asks nothing of you.

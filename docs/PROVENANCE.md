@@ -2,21 +2,15 @@
 
 This file records two different facts which must not be blurred together:
 
-1. where knowledge entered the project historically; and
-2. what authority and algorithm the current source uses.
+1. what authority and algorithm the current source uses; and
+2. where knowledge entered the project historically.
 
-## Historical status
-
-Retro-3DO is **not a clean-room project**. During development, FreeDO-descended
-Opera code in `4DO-Android/app/cpp/native_core/` and later the sanctioned local
-Opera tree were read and used as a compatibility reference. Some routines were
-initially close ports. Replacing those routines later does not undo that prior
-exposure, so this repository must not claim that it was independently developed
-without knowledge of FreeDO or Opera.
-
-The FreeDO notice also purports to restrict commercial use of knowledge gained
-from its source. This document records the fact rather than offering a legal
-opinion about the scope or enforceability of that language.
+Both are below, in that order, because they are routinely confused. In short:
+**no FreeDO or Opera source is compiled or vendored in this repository**; every
+routine once listed as a direct algorithm port has since been rebuilt around a
+published hardware description and is covered by project tests; and the project
+was nonetheless reference-exposed during development, which is recorded under
+"Historical status" rather than left out.
 
 ## Current implementation audit
 
@@ -42,6 +36,19 @@ The source-level conclusion is therefore narrower and more accurate than
 “clean-room”: **the current algorithms in the old direct-port list have been
 independently restructured and are backed by public specifications and project
 tests, but the project remains historically reference-exposed.**
+
+## Historical status
+
+Retro-3DO is **not a clean-room project**. During development, FreeDO-descended
+Opera code in `4DO-Android/app/cpp/native_core/` and later the sanctioned local
+Opera tree were read and used as a compatibility reference. Some routines were
+initially close ports. Replacing those routines later does not undo that prior
+exposure, so this repository must not claim that it was independently developed
+without knowledge of FreeDO or Opera.
+
+The FreeDO notice also purports to restrict commercial use of knowledge gained
+from its source. This document records the fact rather than offering a legal
+opinion about the scope or enforceability of that language.
 
 ## Behavior-only fallback facts still retained
 

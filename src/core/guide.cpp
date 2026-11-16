@@ -1,5 +1,7 @@
 #include "guide.h"
 
+#include "product.h"
+
 #include <cstring>
 
 namespace retro3do {
@@ -19,7 +21,7 @@ constexpr unsigned kViolet = 0xA98BF5;
 // and no sentence explains the machine's internals for their own sake.
 const GuideStep kSteps[] = {
     {
-        "Welcome to Retro-3DO",
+        "Welcome to " RETRO3DO_PRODUCT_NAME,
         "This is a 3DO Interactive Multiplayer, the CD console Panasonic and "
         "Goldstar sold from 1993. The app is the machine; the discs are yours.\n\n"
         "It opens on a shelf. Everything you can play is a tile on it, and "
@@ -73,7 +75,7 @@ const GuideStep kSteps[] = {
         "folder called 3DO and keep them together. Subfolders inside it are "
         "fine. If your folder has games and bios subfolders, choose their "
         "parent folder: the app finds your discs and system ROMs together.\n\n"
-        "Then point Retro-3DO at that folder. Android will ask you to confirm, "
+        "Then point " RETRO3DO_PRODUCT_NAME " at that folder. Android will ask you to confirm, "
         "and the app is given that folder and nothing else. You only do this "
         "once: the permission is remembered between launches, the app can never "
         "see anything outside the folder you chose, and nothing is copied \xE2\x80\x94 "
@@ -90,7 +92,7 @@ const GuideStep kSteps[] = {
         "A 3DO game is a disc image: one file ending .iso, .chd or .img, or a "
         ".bin with a .cue file beside it. Use images of discs you own.\n\n"
         "Keep them in one folder \xE2\x80\x94 Downloads will do, or a folder of their "
-        "own \xE2\x80\x94 and point Retro-3DO at it. It reads them where they sit, "
+        "own \xE2\x80\x94 and point " RETRO3DO_PRODUCT_NAME " at it. It reads them where they sit, "
         "subfolders included. If you have games and bios subfolders, choose "
         "their parent folder to find both automatically. Nothing is copied "
         "and nothing is moved.\n\n"

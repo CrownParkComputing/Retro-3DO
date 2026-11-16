@@ -1,0 +1,97 @@
+Standard 4.3 follow-up answers, prepared for Spryte.
+
+These are the nine questions App Review has asked this account on every 4.3
+thread (DOSDeck, Stunt Car, Retro-3DO). Answering them is what cleared the
+previous threads; appealing did not. Hold these until they are asked.
+
+Answer 4 still needs Jon: it must describe real tester feedback from his own
+record. `asc testflight feedback list` returns zero feedback submissions, so
+there is nothing to quote from the API.
+
+---
+
+1. What the app does, and the problem it solves
+
+Spryte runs software for the 3DO Interactive Multiplayer, the CD-ROM console
+Panasonic and Goldstar sold from 1993, on iPhone and iPad. A "spryte" is that
+machine's own term for the primitive its graphics hardware draws: not a
+rectangle blitted to the screen but a source image mapped corner by corner onto
+an arbitrary quadrilateral, which is how its games scaled and rotated sprites
+without a 3D pipeline. Implementing that correctly is the bulk of the work, and
+it is where the app's name comes from.
+
+It is not a wrapper around someone else's emulator. It emulates the machine:
+the ARM60 CPU, the MADAM and CLIO chipsets, the video display list, DSP audio,
+the XBUS and PBUS peripheral buses, the SPORT port and the CD-ROM subsystem.
+It is built for a phone specifically: each instruction is decoded once and
+cached rather than re-decoded on every execution, and frames are never
+presented from inside the emulation thread.
+
+2. The intended user and target audience
+
+People who owned a 3DO or own its discs and want to play them on a device they
+already carry, and people who want an emulator of this machine that was written
+for a modern phone rather than carried forward from a desktop one.
+
+3. The market gap, and why other apps do not fill it
+
+The widely used 3DO cores descend from a 1990s desktop emulator. Their CPU
+re-decodes every instruction on every execution, their graphics chip is scalar
+C, and they present frames from inside the emulation thread, so a slow present
+stalls emulation and the machine appears throttled rather than slow.
+
+This implementation differs in kind rather than in packaging: decoded-and-cached
+instructions, no present on the emulation path, and accuracy measured against a
+reference implementation rather than asserted — two commercial titles run
+pixel-identical to it at frame 20,000, and the build is gated on 250+
+regression checks. Every chip is CRC-checked before a game starts.
+
+4. Beta testing, and the feedback that changed the app
+
+[JON: TestFlight has carried this build. Describe what testers actually
+reported and what changed as a result. Do not invent this -- the feedback API
+returns nothing, so it has to come from your own record.]
+
+5. Whether it is standalone or part of a suite on this account
+
+Standalone. It is not a feature of another app and does not require one. The
+account publishes other emulators, each for a different machine and each from a
+different codebase: DOSDeck, Dad's Wire Drawer, Retro-Amiga, Retro-Saturn,
+Retro-Spectrum, ST Desk, SplatLand, Stunt Car Racing 2026 and Virtua Cop
+Trilogy.
+
+6. Whether this could be an in-app purchase or content addition to one of them
+
+No, and there is no candidate. This is a whole emulator for one machine --
+processor, chipsets, graphics, audio, CD subsystem, its own implementation and
+its own tests. There is no network feature, no advertising, no in-app purchase
+and no account anywhere in it, so there is nothing for it to be sold inside.
+
+7. Code or assets shared with the other apps on this account
+
+None beyond standard third-party frameworks. The libraries are libchdr, miniz,
+the LZMA SDK and zstd, each under its own licence and credited.
+
+The interface is not shared. This app's front end is written in SwiftUI for iOS
+alone, and the cross-platform interface the account's other apps used is not
+compiled into it. The icon is drawn for this app and shares no element with the
+others; the script that generated a single icon composition for every app does
+not write it.
+
+8. A shared codebase or content library with any third party
+
+No code or assets are shared with any other app on the App Store. The emulator
+is this developer's own implementation, written against published hardware
+documentation -- the 3DO SDK headers and Graphics Programming Guide, the
+granted patents covering the machine's architecture, and ARM's own ARM6
+documentation -- and covered by the project's tests. No FreeDO or Opera source
+is compiled into the app or vendored in its repository.
+
+We are happy to answer any specific question about the provenance of any part
+of it.
+
+9. Whether it was created for a client, partner or other third party
+
+No. It is Crown Park Computing's own product, designed and published by us. Its
+third-party material is open-source software used under its licences with
+attribution, not content supplied by a client.

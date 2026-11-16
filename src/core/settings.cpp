@@ -1,5 +1,7 @@
 #include "settings.h"
 
+#include "product.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -64,7 +66,7 @@ bool Settings::save() const {
         return false;
     }
 
-    std::fprintf(file, "# Retro-3DO settings\n");
+    std::fprintf(file, "# " RETRO3DO_PRODUCT_NAME " settings\n");
     for (const auto& entry : values_) {
         // Values are written raw and read back trimmed. A value containing a
         // newline would corrupt the file, so it is skipped rather than written:

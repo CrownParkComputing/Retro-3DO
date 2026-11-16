@@ -6,8 +6,8 @@ reference exposure from the public authority and independently structured
 algorithm used by the current source. Anything not checked against a citable
 source is marked rather than quietly asserted.
 
-The current module-by-module comparison with Opera, including deliberate
-compatibility boundaries, is [OPERA_AUDIT.md](OPERA_AUDIT.md). The bring-up
+The current implementation audit for every module, including the deliberate
+compatibility boundaries, is [PROVENANCE.md](PROVENANCE.md). The bring-up
 traces later in this file are retained as history and are not the current
 feature boundary.
 

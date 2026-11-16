@@ -77,8 +77,8 @@ both edges fixes the Road Rash rider and the rotating/scrolled scenery in both
 titles. The regression is
 `a_transparent_run_advances_both_edges_of_a_rotated_packed_cel`.
 
-The full pre-build module comparison and the deliberately remaining boundaries
-are in [OPERA_AUDIT.md](OPERA_AUDIT.md).
+The implementation audit for every module, and the behaviour-only
+compatibility choices that remain, are in [PROVENANCE.md](PROVENANCE.md).
 
 The post-audit source retrospective replaced the former direct-port routines:
 MADAM matrix math, arbitrary-quad rasterisation, winding/visibility, LR-form
@@ -178,7 +178,7 @@ The Opera audit then fixed full CLIO/MADAM/XBUS reset state, read-only chip
 revisions, ordinary CLIO register latches, DMA/type-0 readback, VDL video-DMA
 blanking and VRAM wrapping, skipped-CCB state inheritance, and the rotated
 packed-CEL transparent-run edge bug. Each has a focused test; see
-[OPERA_AUDIT.md](OPERA_AUDIT.md).
+[PROVENANCE.md](PROVENANCE.md).
 
 **And the input path: `PadState` was written by the front end and read by
 nothing.** The on-screen pad and every controller were connected to a dead end.

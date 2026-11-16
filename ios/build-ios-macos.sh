@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Retro-3DO.app for iPhone and iPad, natively on macOS.
+# Builds Spryte.app for iPhone and iPad, natively on macOS.
 #
 # This is the same shape as the recipe already proven in Retro-Saturn and
 # Retro-C64, and it exists in that form for a reason: cross-building iOS on
@@ -104,11 +104,11 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" -G Xcode \
     -DRETRO3DO_USE_SYSTEM_SDL=OFF
 
 if [ "$ARCHIVE" = "1" ]; then
-    ARCHIVE_PATH="$BUILD_DIR/Retro-3DO.xcarchive"
+    ARCHIVE_PATH="$BUILD_DIR/Spryte.xcarchive"
     EXPORT_DIR="$BUILD_DIR/export"
     echo "==> archiving"
-    xcodebuild -project "$BUILD_DIR/Retro3DO.xcodeproj" \
-        -scheme Retro3DO -configuration Release \
+    xcodebuild -project "$BUILD_DIR/Spryte.xcodeproj" \
+        -scheme Spryte -configuration Release \
         -destination "$DESTINATION" \
         -archivePath "$ARCHIVE_PATH" archive
 
@@ -125,7 +125,7 @@ if [ "$ARCHIVE" = "1" ]; then
         # being exported, and reading it fails loudly if SKIP_INSTALL left the
         # archive with no app in it -- otherwise -exportArchive reports having
         # nothing to export and does not say why.
-        ARCHIVED_APP="$ARCHIVE_PATH/Products/Applications/Retro-3DO.app"
+        ARCHIVED_APP="$ARCHIVE_PATH/Products/Applications/Spryte.app"
         [ -f "$ARCHIVED_APP/Info.plist" ] || {
             echo "FATAL: the archive contains no app at $ARCHIVED_APP" >&2
             exit 1
@@ -166,7 +166,7 @@ fi
 echo "==> building"
 cmake --build "$BUILD_DIR" --config Release -- -destination "$DESTINATION"
 
-APP="$(find "$BUILD_DIR" -maxdepth 4 -name 'Retro-3DO.app' -print -quit)"
+APP="$(find "$BUILD_DIR" -maxdepth 4 -name 'Spryte.app' -print -quit)"
 if [ -z "$APP" ]; then
     echo "FATAL: build finished but no .app was produced" >&2
     exit 1
@@ -181,18 +181,18 @@ Run it:
   xcrun simctl boot "iPhone 15"      # or any installed device name
   open -a Simulator
   xcrun simctl install booted "$APP"
-  xcrun simctl launch booted com.crownparkcomputing.retro3DO
+  xcrun simctl launch booted com.crownparkcomputing.spryte
 
 The simulator has no Files app sharing, so put a BIOS in the app's Documents
 directory by hand:
-  xcrun simctl get_app_container booted com.crownparkcomputing.retro3DO data
+  xcrun simctl get_app_container booted com.crownparkcomputing.spryte data
 EOF
 elif [ -z "$TEAM_ID" ]; then
     cat <<EOF
 This bundle is UNSIGNED and will not install on a device. To get it onto one,
 either re-run with TEAM_ID=XXXXXXXXXX, or open the generated project and set a
 team by hand:
-  open $BUILD_DIR/Retro3DO.xcodeproj
+  open $BUILD_DIR/Spryte.xcodeproj
 EOF
 else
     cat <<EOF

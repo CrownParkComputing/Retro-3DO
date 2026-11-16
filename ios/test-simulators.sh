@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-app=$(find ios/build -name 'Retro-3DO.app' -type d -print -quit)
+app=$(find ios/build -name 'Spryte.app' -type d -print -quit)
 test -n "$app"
 mkdir -p shots
 maestro --version
@@ -22,7 +22,7 @@ device_type = next(t for t in types if re.search(pattern, t["name"]))
 runtimes = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "runtimes", "--json"]))["runtimes"]
 runtime = max((r for r in runtimes if r.get("isAvailable") and ".iOS-" in r["identifier"]),
               key=lambda r: tuple(int(x) for x in r["version"].split(".")))
-print(subprocess.check_output(["xcrun", "simctl", "create", "Retro3DO-" + pattern,
+print(subprocess.check_output(["xcrun", "simctl", "create", "Spryte-" + pattern,
                                device_type["identifier"], runtime["identifier"]], text=True).strip())
 ' "$1"
 }
@@ -40,10 +40,10 @@ test_device() {
         --format junit --output "shots/$prefix-layout.xml" ios/tests/setup-and-layout.yaml
 
     # Verify the drag reached persistent storage before resetting the layout.
-    local container; container=$(xcrun simctl get_app_container "$udid" com.crownparkcomputing.retro3DO data)
+    local container; container=$(xcrun simctl get_app_container "$udid" com.crownparkcomputing.spryte data)
     python3 - "$container" <<'PY'
 import json, pathlib, plistlib, sys
-preferences = pathlib.Path(sys.argv[1]) / 'Library/Preferences/com.crownparkcomputing.retro3DO.plist'
+preferences = pathlib.Path(sys.argv[1]) / 'Library/Preferences/com.crownparkcomputing.spryte.plist'
 with preferences.open('rb') as stream:
     values = plistlib.load(stream)
 positions = json.loads(values['onscreenPadLayout.v1'])

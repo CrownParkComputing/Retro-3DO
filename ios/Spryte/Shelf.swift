@@ -123,7 +123,7 @@ struct Shelf: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Retro-3DO")
+            Text("Spryte")
                 .font(.system(size: 30, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.ink)
             Spacer()

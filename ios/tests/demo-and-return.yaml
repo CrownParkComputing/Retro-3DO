@@ -1,4 +1,4 @@
-appId: com.crownparkcomputing.retro3DO
+appId: com.crownparkcomputing.spryte
 ---
 - assertVisible: "Drag the controls"
 - tapOn: "Reset"

@@ -1,1 +1,11 @@
-Retro-3DO is an independently written 3DO emulator. This iOS release uses a native SwiftUI library, Files importer, Settings, guided setup and touch-control editor. The setup guide opens on first launch and can be reopened from Settings > How Retro-3DO works. Arrange my controls opens the layout editor without starting a game, including when a hardware controller is connected. To review without supplying any content: select the demonstration tile, or choose Play the demo now in the guide. The original demonstration ROM was written for this app, exercises video/audio/controller input and needs no commercial BIOS or game. Touch controls and supported Bluetooth controllers work in the demo. Commercial system ROMs and games are not bundled, downloaded or sold; users import their own files with the + tile. Imported BIOS choices, pad layouts, library entries and shared saved RAM persist between launches. No account or sign-in is required.
+Spryte is an independently written emulator of the 3DO Interactive Multiplayer (Panasonic/Goldstar, 1993). "Spryte" is the 3DO's own term for the primitive its graphics hardware draws.
+
+To review it without supplying any content: the first tile on the shelf is a demonstration program written for this app. Tap it, or choose "Play the demo now" in the guide that opens on first launch. It needs no commercial system ROM and no game, and it exercises video, audio and controller input, so the emulator can be seen running end to end.
+
+The front end is native SwiftUI: a single shelf of tiles, Apple's document picker for importing, a settings sheet, a first-run guide and a touch-control editor. The guide can be reopened from Settings > How Spryte works. "Arrange my controls" opens the layout editor without starting a game, including while a hardware controller is connected.
+
+Touch controls and supported Bluetooth controllers both work in the demo. Imported BIOS choices, pad layouts, library entries and shared saved RAM persist across launches.
+
+No system ROM and no game content is bundled, downloaded or sold. Users import their own files with the + tile, and the app reads each file to classify it rather than trusting its extension. There is no account, no sign-in, no network feature, no advertising and no in-app purchase.
+
+Note for App Review: this is a new product, not a resubmission of app 6808591874 (Retro-3DO). It has a different bundle identifier, name, icon, interface palette and listing. The shared part is the emulator itself, which is this developer's own code.

@@ -1,0 +1,20 @@
+Thank you for the review and for the detail in the 4.3(a) notice.
+
+We accept it. We are not resubmitting this app and we are not appealing again. Retro-3DO is withdrawn.
+
+We can say specifically why we think the finding was fair. Our apps were built from one shared front end — the same screens with a different machine behind them — and from one icon template that generated an icon for every app from a single composition. That is a template, and we understand how it reads.
+
+Rather than resubmit this binary, we are publishing the 3DO emulator as a different product, under a different bundle identifier. It is not this app renamed:
+
+- The interface is native SwiftUI, written for iOS alone: one shelf of tiles, the system document picker for importing, a first-run guide. The shared cross-platform interface this app used is not compiled into it at all.
+- Its icon is drawn for it and shares no element with our other apps' icons. The script that generated the family icon no longer writes it.
+- Its colours are its own, not this app's.
+- Its listing is written for it, not from the pattern our listings shared.
+- Its keywords no longer include the terms our apps had in common.
+- A sign-in integration for a third-party service has been removed from the codebase entirely.
+
+We have also stopped the practice that produced the problem, not only its output on this one record. We are holding our remaining unsubmitted apps back rather than sending you more of the same shape while this is being put right.
+
+The emulator itself is our own code, and that is the part the new app keeps.
+
+If anything about the new app still reads as too close to our others when you see it, we would rather be told and fix it than have you spend another review on us.

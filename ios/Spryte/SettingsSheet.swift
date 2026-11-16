@@ -18,7 +18,7 @@ struct SettingsSheet: View {
             Form {
                 Section {
                     Button(action: showGuide) {
-                        Label("How Retro-3DO works", systemImage: "book")
+                        Label("How Spryte works", systemImage: "book")
                     }
                 } footer: {
                     Text("The setup guide from your first launch. It is here whenever you want it.")
@@ -55,7 +55,7 @@ struct SettingsSheet: View {
                 }
 
                 Section("About") {
-                    LabeledContent("Emulator", value: "Retro-3DO")
+                    LabeledContent("Emulator", value: "Spryte")
                     Link("Crown Park Computing",
                          destination: URL(string: "https://www.crownparkcomputing.com/")!)
                 }

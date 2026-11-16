@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct Retro3DOApp: App {
+struct SpryteApp: App {
     @StateObject private var engine = Engine()
     @Environment(\.scenePhase) private var phase
 

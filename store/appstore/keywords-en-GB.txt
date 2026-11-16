@@ -1,1 +1,1 @@
-3do,emulator,retro,interactive multiplayer,arm60,console,games,retrogaming
+3do,interactive multiplayer,cd console,arm60,madam,clio,cel,disc image,chd,1993
