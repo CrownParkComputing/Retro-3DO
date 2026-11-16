@@ -64,9 +64,26 @@ struct PadOverlay: View {
                                                  small * 2 + actionUnit * 0.06),
                                       height: small * 2 + face * 2 + actionUnit * 0.24)
             let y = portrait ? picture + (geo.size.height - picture) / 2 : geo.size.height / 2
-            let left = CGPoint(x: portrait ? 28 + diameter / 2 : side / 2, y: y)
+
+            // In landscape the controls sit in the letterbox either side of the
+            // 4:3 picture, so `side` is how much room there is. On a 4:3 screen
+            // there is none: the 13in iPad is exactly 1376x1032, so
+            // (w - h*4/3)/2 is 0 and `side` falls back to its 120 minimum --
+            // which is also the d-pad's diameter. Centring on side/2 then put
+            // the group flush against the edge at 0...120, and the editor's
+            // dashed border, drawn 12pt larger, hung 6pt off the screen.
+            //
+            // So the inset is whichever is larger: the letterbox, or enough
+            // room for the group and its handle. Measured from the store
+            // screenshot, which is how this was found at all.
+            let handle: CGFloat = 6          // half of the editor border's +12
+            let margin: CGFloat = 8
+            let leftInset = max(side / 2, directionBounds.width / 2 + handle + margin)
+            let rightInset = max(side / 2, actionBounds.width / 2 + handle + margin)
+
+            let left = CGPoint(x: portrait ? 28 + diameter / 2 : leftInset, y: y)
             let right = CGPoint(x: portrait ? geo.size.width - 28 - actionBounds.width / 2
-                                            : geo.size.width - side / 2, y: y)
+                                            : geo.size.width - rightInset, y: y)
             ZStack {
                 group("directions", size: geo.size, bounds: directionBounds, fallback: left) {
                     Pad.Directions(mask: $mask, unit: directionUnit)
@@ -89,8 +106,15 @@ struct PadOverlay: View {
                     .strokeBorder(Theme.accent.opacity(0.7), style: StrokeStyle(lineWidth: 2, dash: [6]))
                     .frame(width: bounds.width + 12, height: bounds.height + 12)
                     .contentShape(Rectangle())
+                    // Clamped against the border's size, not the control's, so
+                    // dragging a group to the edge cannot push the handle off
+                    // the screen the way the default position used to.
                     .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("padCanvas"))
-                        .onChanged { layout.move(name, to: $0.location, size: size, bounds: bounds) }
+                        .onChanged {
+                            layout.move(name, to: $0.location, size: size,
+                                        bounds: CGSize(width: bounds.width + 12,
+                                                       height: bounds.height + 12))
+                        }
                         .onEnded { _ in layout.save() })
                     .accessibilityLabel(name == "directions" ? "Move directional controls" : "Move action buttons")
                     .accessibilityIdentifier("pad-\(name)-handle")
