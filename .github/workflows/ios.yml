@@ -9,6 +9,11 @@ on:
     # lists it for workflows already on the default branch. Naming the branch
     # here is the only way a push can build the iOS app at all.
     branches: [main, ios-shelf]
+    # Documentation and store metadata do not change the binary, and the
+    # release job below uploads a real build to App Store Connect on every
+    # run. Without this, editing a checklist costs a build that then has to be
+    # expired by hand to keep one live build on the record.
+    paths-ignore: ['**.md', 'store/appstore/**']
   pull_request:
     branches: [main]
   workflow_dispatch:
