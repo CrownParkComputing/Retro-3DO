@@ -3,7 +3,7 @@ appId: com.crownparkcomputing.spryte
 - launchApp:
     clearState: true
 - setOrientation: LANDSCAPE_LEFT
-- assertVisible: "Welcome to Retro-3DO"
+- assertVisible: "Welcome to Spryte"
 - takeScreenshot: 02-guide
 - repeat:
     times: 4
@@ -25,7 +25,7 @@ appId: com.crownparkcomputing.spryte
 - takeScreenshot: 01-library
 - launchApp
 - assertVisible: "Play the demo"
-- assertNotVisible: "Welcome to Retro-3DO"
+- assertNotVisible: "Welcome to Spryte"
 - tapOn: "Settings"
 - tapOn: "Arrange my controls"
 - assertVisible: "Drag the controls"

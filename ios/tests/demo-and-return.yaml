@@ -21,8 +21,8 @@ appId: com.crownparkcomputing.spryte
 - tapOn: "Back to the shelf"
 - assertVisible: "Play the demo"
 - tapOn: "Settings"
-- tapOn: "How Retro-3DO works"
-- assertVisible: "Welcome to Retro-3DO"
+- tapOn: "How Spryte works"
+- assertVisible: "Welcome to Spryte"
 - tapOn: "Next"
 - tapOn: "Play the demo now"
 - assertVisible:
