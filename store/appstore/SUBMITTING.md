@@ -2,45 +2,32 @@
 
 Everything in the tree is ready. What is left is the part no API key can do.
 
-## 1. Create the app record (web only, and it is the blocker)
+The record exists:
 
-No App Store Connect API key can create an app record — `asc apps create` does
-not exist, and the Apple ID that can is the outlook.com one. Until this exists,
-the `release` job's final step fails: the archive builds and signs correctly,
-and `altool` then has nothing to upload to.
-
-In App Store Connect → Apps → **+** → New App:
-
-| Field | Value |
+| | |
 |---|---|
-| Platform | iOS |
-| Name | `Spryte` |
-| Primary language | English (U.K.) |
-| Bundle ID | `com.crownparkcomputing.spryte` — already created, ID `JTN3AC3XQ9` |
-| SKU | anything unused, e.g. `spryte-ios` |
-| User access | Full |
+| App ID | `6835535735` |
+| Version ID | `fabf6214-0235-4559-84c7-583201f0c67f` (1.0) |
+| Bundle ID | `com.crownparkcomputing.spryte` (`JTN3AC3XQ9`) |
+| SKU | `spryte-ios` |
 
-Then, still on the website, because these are web-only too:
+## 1. Still web-only
 
 - **App Privacy.** The app collects nothing: no account, no analytics, no
-  network. Answer "Data Not Collected".
-- **Age rating.**
+  network. Answer "Data Not Collected". No API can set this.
 - **App Information → Regulations and Permits → DSA trader status.** Already
   satisfied at account level, but confirm it on the new record.
 - **Price.** Worth a thought rather than a default: the family is free, and a
   paid download is one of the few differences guideline 4.3(a) actually counts.
+  Availability is already set to all 175 territories.
 
-## 2. Fill the listing from this directory
+## 2. The listing is already filled
 
-```sh
-APP=<new app id>
-asc localizations update --version <version-id> --locale en-GB \
-  --description "$(cat store/appstore/description-en-GB.txt)" \
-  --keywords    "$(cat store/appstore/keywords-en-GB.txt)" \
-  --promotional-text "$(cat store/appstore/promo-en-GB.txt)"
-asc review details update --version <version-id> \
-  --notes "$(cat store/appstore/review-notes.txt)"
-```
+Description, keywords, promotional text, support URL, copyright, categories
+(Games / Action / Adventure, secondary Utilities), content rights, the age
+rating (all "none", which is accurate — the app ships only the hardware demo)
+and the review notes and contact details are all set from this directory. To
+change any of them, edit the file and re-run the matching `asc` command.
 
 ## 3. Screenshots
 
