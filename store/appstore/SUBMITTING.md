@@ -11,10 +11,14 @@ The record exists:
 | Bundle ID | `com.crownparkcomputing.spryte` (`JTN3AC3XQ9`) |
 | SKU | `spryte-ios` |
 
+`asc validate` reports **0 errors, 0 warnings, 0 blocking**. What is left is
+only what no API can touch.
+
 ## 1. Still web-only
 
 - **App Privacy.** The app collects nothing: no account, no analytics, no
-  network. Answer "Data Not Collected". No API can set this.
+  network. Answer "Data Not Collected". No API can set this, and `asc
+  validate` does not check it.
 - **App Information → Regulations and Permits → DSA trader status.** Already
   satisfied at account level, but confirm it on the new record.
 - **Price.** Worth a thought rather than a default: the family is free, and a
