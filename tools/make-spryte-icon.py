@@ -197,6 +197,10 @@ def build(size):
     return img.convert("RGB").resize((size, size), Image.LANCZOS)
 
 
+GUIDEMARK = os.path.join(
+    os.path.dirname(ICONSET), "GuideMark.imageset")
+
+
 def main():
     icon = build(SIZE)
     written = []
@@ -212,8 +216,22 @@ def main():
     ]:
         out = os.path.join(ICONSET, name)
         (icon if px == 1024 else icon.resize((px, px), Image.LANCZOS)).save(out)
-        written.append(f"{name} ({px}x{px})")
-    print("wrote into " + ICONSET + ":")
+        written.append(f"AppIcon.appiconset/{name} ({px}x{px})")
+
+    # The guide shows the mark on its first step, from a SEPARATE imageset --
+    # which is how the old family icon survived the rename and turned up in a
+    # store screenshot after the app icon had already been replaced. One script
+    # writes both, so they cannot drift apart again.
+    #
+    # Square, with no rounding baked in: GuideView.swift clips it to a
+    # continuous-corner rectangle itself.
+    for name, px in [("mark@1x.png", 76), ("mark@2x.png", 152),
+                     ("mark@3x.png", 228)]:
+        out = os.path.join(GUIDEMARK, name)
+        icon.resize((px, px), Image.LANCZOS).convert("RGBA").save(out)
+        written.append(f"GuideMark.imageset/{name} ({px}x{px})")
+
+    print("wrote:")
     for w in written:
         print("  " + w)
 
