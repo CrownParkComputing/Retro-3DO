@@ -20,9 +20,14 @@ only what no API can touch.
 - **Price** — done: $1.99, proceeds $1.40, base territory USA, available in
   all 175 territories. Paid on purpose: every sibling is free, so this is one
   of the few differences guideline 4.3(a) actually counts.
-- **App Information → Regulations and Permits → DSA trader status.** Already
-  satisfied at account level; `asc review doctor` cannot see it, so confirm it
-  on this record before submitting. This is the last unchecked thing.
+- **DSA trader status** — done. It is **account-level**, not per app, which is
+  why there is no section for it on a new record and why it predates Spryte:
+  Business → Agreements → Compliance shows Digital Services Act, 27 countries,
+  updated 2026-08-25, status **Active**. `asc review doctor` reports it as
+  NOT_CHECKED because the API cannot see it, not because it is missing.
+
+Nothing is outstanding. The version is in PREPARE_FOR_SUBMISSION and both
+`asc validate` and `asc review doctor` report zero blockers.
 
 ## 2. The listing is already filled
 
