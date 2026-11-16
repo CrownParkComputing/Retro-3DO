@@ -173,7 +173,38 @@ def main() -> int:
     print(f"  uuid:    {attrs.get('uuid')}")
     print(f"  expires: {attrs.get('expirationDate')}")
     print(f"  wrote:   {args.out} ({len(blob)} bytes)")
+
+    # Which certificates the profile accepts, by SHA-1 -- the fingerprint
+    # `security find-identity -v` prints for what is actually in the keychain.
+    #
+    # Worth the twenty lines: this account has two Apple Distribution
+    # certificates with the *same common name* and different serials, so
+    # "doesn't include signing certificate Apple Distribution: <name>" is the
+    # error you get, and the name in it matches the one you chose. Nothing in
+    # the build log distinguished them. These lines do.
+    for fp in profile_certificate_fingerprints(blob):
+        print(f"  accepts: {fp}")
     return 0
+
+
+def profile_certificate_fingerprints(blob: bytes):
+    """SHA-1 of each DeveloperCertificate, read from the profile's plist.
+
+    The profile is CMS-signed, with an XML plist inside it. Slicing the plist
+    out beats parsing CMS, and failing to read it must never fail the build --
+    this is diagnostics, not a gate.
+    """
+    import hashlib
+    import plistlib
+
+    try:
+        start = blob.index(b"<?xml")
+        end = blob.index(b"</plist>") + len(b"</plist>")
+        certs = plistlib.loads(blob[start:end]).get("DeveloperCertificates", [])
+    except Exception as e:  # noqa: BLE001 - diagnostics only
+        return [f"(could not read certificates from the profile: {e})"]
+
+    return [hashlib.sha1(der).hexdigest().upper() for der in certs]
 
 
 if __name__ == "__main__":
