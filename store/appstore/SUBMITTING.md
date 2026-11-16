@@ -16,14 +16,13 @@ only what no API can touch.
 
 ## 1. Still web-only
 
-- **App Privacy.** The app collects nothing: no account, no analytics, no
-  network. Answer "Data Not Collected". No API can set this, and `asc
-  validate` does not check it.
+- **App Privacy** — done, 2026-11-16. "Data Not Collected".
+- **Price** — done: $1.99, proceeds $1.40, base territory USA, available in
+  all 175 territories. Paid on purpose: every sibling is free, so this is one
+  of the few differences guideline 4.3(a) actually counts.
 - **App Information → Regulations and Permits → DSA trader status.** Already
-  satisfied at account level, but confirm it on the new record.
-- **Price.** Worth a thought rather than a default: the family is free, and a
-  paid download is one of the few differences guideline 4.3(a) actually counts.
-  Availability is already set to all 175 territories.
+  satisfied at account level; `asc review doctor` cannot see it, so confirm it
+  on this record before submitting. This is the last unchecked thing.
 
 ## 2. The listing is already filled
 
