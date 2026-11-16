@@ -2,7 +2,7 @@ name: Desktop release builds
 
 on:
   push:
-    branches: [ios-shelf]
+    branches: [ios-shelf]   # macOS only here; see the linux-windows job's if:
     paths-ignore: ['ios/**', 'store/appstore/**', '.github/workflows/ios.yml']
   workflow_dispatch:
 
@@ -14,7 +14,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Linux and Windows. Skipped on ios-shelf, which is the iOS app's branch:
+  # pushes there should build the Apple targets and nothing else. The macOS job
+  # below still runs, so a shared-code change is always built on an Apple
+  # toolchain. Run this by hand (workflow_dispatch) before shipping a desktop
+  # release after a change under src/core.
   native:
+    if: github.ref != 'refs/heads/ios-shelf' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:

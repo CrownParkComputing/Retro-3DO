@@ -89,9 +89,10 @@ In rough order of likelihood.
 
 1. **The scheme is the CMake target name, and the product is its
    `OUTPUT_NAME`** — and the two differ per platform, which is the usual cause
-   of an "unknown scheme". On iOS the project is `Spryte.xcodeproj`, the scheme
-   is `Spryte` and the product is `Spryte.app`. On macOS the scheme is
-   `retro3do` and the product is `Retro-3DO.app`. If `xcodebuild` reports an
+   of an "unknown scheme". The *project* file is `Retro3DO.xcodeproj` on both,
+   because it is named after the CMake `project()` and that is the repository,
+   not the app. On iOS the scheme is `Spryte` and the product is `Spryte.app`;
+   on macOS the scheme is `retro3do` and the product is `Retro-3DO.app`. If `xcodebuild` reports an
    unknown scheme, that is the name to check first — nothing else is wrong.
 2. **SDL's own CMake decides the Apple backends.** The vendored SDL builds
    static everywhere except Android. If SDL fails to configure for iOS, fix it

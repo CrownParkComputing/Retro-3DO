@@ -2,7 +2,10 @@ name: Build Play Store AAB
 
 on:
   push:
-    branches: [ main, master, ios-shelf ]
+    # ios-shelf is the iOS app's branch and is deliberately not here: the
+    # Play AAB is released from main. Run this by hand (workflow_dispatch)
+    # before shipping Android after a change to shared code in src/core.
+    branches: [ main, master ]
     paths-ignore: ['ios/**', 'store/appstore/**', '.github/workflows/ios.yml']
   workflow_dispatch:
 

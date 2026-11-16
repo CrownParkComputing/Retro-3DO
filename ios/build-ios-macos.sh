@@ -107,7 +107,7 @@ if [ "$ARCHIVE" = "1" ]; then
     ARCHIVE_PATH="$BUILD_DIR/Spryte.xcarchive"
     EXPORT_DIR="$BUILD_DIR/export"
     echo "==> archiving"
-    xcodebuild -project "$BUILD_DIR/Spryte.xcodeproj" \
+    xcodebuild -project "$BUILD_DIR/Retro3DO.xcodeproj" \
         -scheme Spryte -configuration Release \
         -destination "$DESTINATION" \
         -archivePath "$ARCHIVE_PATH" archive
@@ -192,7 +192,7 @@ elif [ -z "$TEAM_ID" ]; then
 This bundle is UNSIGNED and will not install on a device. To get it onto one,
 either re-run with TEAM_ID=XXXXXXXXXX, or open the generated project and set a
 team by hand:
-  open $BUILD_DIR/Spryte.xcodeproj
+  open $BUILD_DIR/Retro3DO.xcodeproj
 EOF
 else
     cat <<EOF
