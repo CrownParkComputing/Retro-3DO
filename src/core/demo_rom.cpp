@@ -15,7 +15,7 @@ const DemoRom& builtin_demo_rom() {
         kDemoRomBytes,
         kDemoRomBytes_len,
         RETRO3DO_PRODUCT_NAME " Original Hardware Demo",
-        "4d76c53f120b6f0465ae434108773747265ad91e6ce7b9050dfb19a16e3cab49",
+        "a745e8adc47ca1fa74e446743eb3a1413da079f822020597be1a794affeeb88d",
     };
     return rom;
 }

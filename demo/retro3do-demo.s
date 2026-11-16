@@ -145,7 +145,7 @@ draw_static_screen:
         bl      fill_rect
 
         ldr     r0, =title_text
-        mov     r1, #91
+        mov     r1, #68                /* centred on the text block: 119 - 17*6/2 */
         mov     r2, #62
         ldr     r3, =0x00007fff
         bl      draw_text
@@ -361,7 +361,7 @@ text_done:
         ldmfd   sp!, {r4-r11, pc}
 
         .section .rodata, "a", %progbits
-title_text:     .asciz "RETRO 3DO"
+title_text:     .asciz "3DO HARDWARE TEST"
 subtitle_text:  .asciz "ORIGINAL HOME-BREW DEMO ROM"
 cpu_text:       .asciz "ARM60 CPU AND RAM       PASS"
 video_text:     .asciz "MADAM VDLP VIDEO        PASS"
